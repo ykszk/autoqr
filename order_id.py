@@ -26,12 +26,16 @@ MSG_DURATION = 2000
 N_THREADS = 2
 
 
-def worker(q: Queue, e: Event):
+def job(job_id):
+    time.sleep(1)
+    logger.info(job_id)
+
+
+def worker(f, q: Queue, e: Event):
     while True:
         e.wait()
-        result = q.get()
-        time.sleep(1)
-        logger.info(result)
+        arg = q.get()
+        f(arg)
         q.task_done()
 
 
@@ -50,7 +54,7 @@ class MainWindow(QMainWindow):
             e = Event()
             e.clear()
             self.events.append(e)
-            t = Thread(target=worker, args=(self.task_queue, e))
+            t = Thread(target=worker, args=(job, self.task_queue, e))
             t.setDaemon(True)
             self.threads.append(t)
             t.start()
