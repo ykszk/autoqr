@@ -1,4 +1,7 @@
 logzero
+pandas
+pydicom
+pynetdicom
 pyqt5
 
 python-dotenv
