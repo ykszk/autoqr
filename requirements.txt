@@ -1,0 +1,2 @@
+logzero
+pyqt5
