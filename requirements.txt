@@ -1,2 +1,4 @@
 logzero
 pyqt5
+
+python-dotenv
