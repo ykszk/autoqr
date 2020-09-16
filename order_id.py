@@ -83,6 +83,9 @@ class MainWindow(QMainWindow):
         output_group.setLayout(QHBoxLayout())
         self.output_edit = QLineEdit()
         self.output_edit.setEnabled(False)
+        self.output_edit.setText(
+            str(Path.home() / 'Desktop' /
+                datetime.date.today().strftime('%m%d')))
         output_group.layout().addWidget(self.output_edit)
         output_button = QPushButton(r'選択...')
         output_button.clicked.connect(on_browse_button_clicked)
@@ -151,6 +154,8 @@ class MainWindow(QMainWindow):
             for w in self.config_widgets:
                 w.setEnabled(False)
 
+            output_dir = Path(self.output_edit.text())
+            output_dir.mkdir(parents=True, exist_ok=True)
             for e in self.events:
                 e.set()
 
