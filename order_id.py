@@ -102,36 +102,33 @@ class MainWindow(QMainWindow):
         def on_input_button_clicked():
             fileName, _ = QFileDialog.getOpenFileName(self, r'リストを開く', '',
                                                       'CSV File (*.csv)')
-            if fileName != '':
-                try:
-                    logger.info('Open input:{}'.format(fileName))
-                    self.df = pd.read_csv(fileName, encoding='cp932')
-                    required_cols = [
-                        r'オーダー番号', r'受診者ID', r'検査日(yyyy/MM/dd HH:mm)'
-                    ]
-                    for c in required_cols:
-                        if c not in self.df.columns:
-                            raise Exception('{}がありません。'.format(c))
-                    self.df['datetime'] = self.df[
-                        r'検査日(yyyy/MM/dd HH:mm)'].map(
-                            lambda d: datetime.datetime.strptime(
-                                d, '%Y/%m/%d %H:%M'))
-                    min_date, max_date = min(self.df['datetime']), max(
-                        self.df['datetime'])
-                    self.input_label.setText(
-                        'ファイル名：{}、総数：{}\n期間：{} ~ {}'.format(
-                            Path(fileName).name, len(self.df),
-                            min_date.date().strftime('%Y/%m/%d'),
-                            max_date.date().strftime('%Y/%m/%d')))
+            if fileName == '':
+                return
 
-                    self.task_queue.queue.clear()
-                    [self.task_queue.put(oid) for oid in self.df[r'オーダー番号']]
-                    self.update_button_state()
-                except Exception as e:
-                    logger.error(e)
-                    dialog = QErrorMessage(self)
-                    dialog.setWindowTitle(r'読み込みエラー')
-                    dialog.showMessage(r'無効なファイルです。{}'.format(str(e)))
+            try:
+                logger.info('Open input:{}'.format(fileName))
+                self.df = pd.read_csv(fileName, encoding='cp932')
+                required_cols = [r'オーダー番号', r'受診者ID', r'検査日(yyyy/MM/dd HH:mm)']
+                for c in required_cols:
+                    if c not in self.df.columns:
+                        raise Exception('{}がありません。'.format(c))
+                self.df['datetime'] = self.df[r'検査日(yyyy/MM/dd HH:mm)'].map(
+                    lambda d: datetime.datetime.strptime(d, '%Y/%m/%d %H:%M'))
+                min_date, max_date = min(self.df['datetime']), max(
+                    self.df['datetime'])
+                self.input_label.setText('ファイル名：{}、総数：{}\n期間：{} ~ {}'.format(
+                    Path(fileName).name, len(self.df),
+                    min_date.date().strftime('%Y/%m/%d'),
+                    max_date.date().strftime('%Y/%m/%d')))
+
+                self.task_queue.queue.clear()
+                [self.task_queue.put(oid) for oid in self.df[r'オーダー番号']]
+                self.update_button_state()
+            except Exception as e:
+                logger.error(e)
+                dialog = QErrorMessage(self)
+                dialog.setWindowTitle(r'読み込みエラー')
+                dialog.showMessage(r'無効なファイルです。{}'.format(str(e)))
 
         input_group = QGroupBox(r'患者リスト')
         input_group.setLayout(QVBoxLayout())
@@ -199,7 +196,7 @@ class MainWindow(QMainWindow):
         self._init_buttons()
 
         self.statusBar().setStyleSheet('background-color: #FFF8DC;')
-        self.statusBar().showMessage('App started.', 2000)
+        self.statusBar().showMessage('App started.', MSG_DURATION)
         self.statusBar().addPermanentWidget(ClockLabel(self))
 
     def update_button_state(self):
