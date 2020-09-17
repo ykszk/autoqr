@@ -1,9 +1,16 @@
 import datetime
 
-from PyQt5.QtWidgets import QLabel, QLineEdit
+from PyQt5.QtWidgets import QLabel, QLineEdit, QFrame
 from PyQt5.QtCore import QTimer, QRegExp
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtCore import Qt
+
+
+class VLine(QFrame):
+    # a simple VLine, like the one you get from designer
+    def __init__(self):
+        super(VLine, self).__init__()
+        self.setFrameShape(self.VLine | self.Sunken)
 
 
 class ClockLabel(QLabel):
