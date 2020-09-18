@@ -15,3 +15,7 @@ git update-index --assume-unchanged .env
 # Pre-commit hooks
 pre-commit install
 ```
+### Test
+``` sh
+python -m pytest --cov tests
+```
