@@ -143,6 +143,7 @@ disable=print-statement,
         missing-docstring,
         too-many-statements,
         no-else-return,
+        broad-except,
         attribute-defined-outside-init
 
 # Enable the message, report, category or checker with the given id(s). You can

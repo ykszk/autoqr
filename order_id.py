@@ -1,18 +1,20 @@
 import os
 import datetime
-from pathlib import Path
-from logzero import logger
+import logging
+import time
 from queue import Queue
 from threading import Thread, Event
-import time
+from pathlib import Path
+from logzero import logger
 import pandas as pd
 
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout
-from PyQt5.QtWidgets import QLabel, QPushButton, QRadioButton, QGroupBox, QFileDialog, QLineEdit, QErrorMessage, QTextEdit
+from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QErrorMessage
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 
 from widgets import VLine, ClockLabel, TimeEdit
+from hm_clock import HMClock
 
 app = QApplication([])
 app.setStyle('Fusion')
@@ -25,17 +27,19 @@ if os.name == 'nt':
 MSG_DURATION = 2000
 N_THREADS = 2
 
+logger.setLevel(logging.DEBUG)
+
 
 def job(job_id):
-    time.sleep(1)
+    time.sleep(2)
     logger.info(job_id)
 
 
 def worker(f, q: Queue, e: Event):
     while True:
         e.wait()
-        arg = q.get()
-        f(arg)
+        args = q.get()
+        f(*args)
         q.task_done()
 
 
@@ -45,6 +49,12 @@ class MainWindow(QMainWindow):
         self.df = None
         self.threads = []
         self.events = []
+        self.start_timer = QTimer(self)
+        self.start_timer.setSingleShot(True)
+        self.start_timer.timeout.connect(self.start_workers)
+        self.stop_timer = QTimer(self)
+        self.stop_timer.setSingleShot(True)
+        self.stop_timer.timeout.connect(self.stop_workers_w_start_timer)
         self.task_queue = Queue()
         self.config_widgets = [
         ]  # widgets used for configuration. disabled during the execution
@@ -60,24 +70,17 @@ class MainWindow(QMainWindow):
             t.start()
 
     def is_in_time(self):
-        start_hm = [int(e) for e in self.start_time.text().split(':')]
-        stop_hm = [int(e) for e in self.stop_time.text().split(':')]
-        start_m = start_hm[0] * 60 + start_hm[1]
-        stop_m = stop_hm[0] * 60 + stop_hm[1]
+        start = HMClock.from_str(self.start_time.text())
+        stop = HMClock.from_str(self.stop_time.text())
+        now = HMClock.now()
 
-        now = datetime.datetime.now()
-        current_m = now.hour * 60 + now.minute
-
-        if start_m < stop_m:
-            return start_m < current_m < stop_m
-        else:
-            return start_m < current_m or current_m < stop_m
+        return now.is_between(start, stop)
 
     def on_period_change(self, _: str):
         if self.is_in_time():
-            self.period_label.setText('実行時間外')
-        else:
             self.period_label.setText('実行時間内')
+        else:
+            self.period_label.setText('実行時間外')
 
     def _init_periods(self):
         period_gropu = QGroupBox('開始・終了時間')
@@ -102,7 +105,7 @@ class MainWindow(QMainWindow):
             fileName = QFileDialog.getExistingDirectory(self, '出力先フォルダを選択')
             if fileName != '':
                 self.output_edit.setText(fileName)
-                logger.info('Set output directory:{}'.format(fileName))
+                logger.info('Set output directory:%s', fileName)
                 self.update_button_state()
 
         output_group = QGroupBox('出力フォルダ')
@@ -128,7 +131,7 @@ class MainWindow(QMainWindow):
                 return
 
             try:
-                logger.info('Open input:{}'.format(fileName))
+                logger.info('Open input:%s', fileName)
                 self.df = pd.read_csv(fileName, encoding='cp932')
                 required_cols = ['オーダー番号', '受診者ID', '検査日(yyyy/MM/dd HH:mm)']
                 for c in required_cols:
@@ -144,7 +147,8 @@ class MainWindow(QMainWindow):
                     max_date.date().strftime('%Y/%m/%d')))
 
                 self.task_queue.queue.clear()
-                [self.task_queue.put(oid) for oid in self.df['オーダー番号']]
+                for oid in self.df['オーダー番号']:
+                    self.task_queue.put([oid])
                 self.update_button_state()
             except Exception as e:
                 logger.error(e)
@@ -164,6 +168,38 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(input_group)
 
+    def start_workers(self):
+        logger.debug('start_workers')
+        self.statusBar().showMessage('Starting workers', MSG_DURATION)
+        stop = HMClock.from_str(self.stop_time.text())
+        stop_wait = stop - HMClock.now()
+        self.stop_timer.start(stop_wait.to_msec() -
+                              datetime.datetime.now().second * 1000)
+        logger.info('stop in %dh %dm at %s', stop_wait.hour, stop_wait.minute,
+                    stop)
+        for e in self.events:
+            e.set()
+
+    def set_start_timer(self):
+        start = HMClock.from_str(self.start_time.text())
+        wait = start - HMClock.now()
+        self.start_timer.start(wait.to_msec() -
+                               datetime.datetime.now().second * 1000)
+        logger.info('start in %dh %dm at %s', wait.hour, wait.minute, start)
+        self.statusBar().showMessage('Scheduled to start at {}'.format(
+            HMClock.from_str(self.start_time.text())))
+
+    def stop_workers(self):
+        logger.debug('stop_workers')
+        for e in self.events:
+            e.clear()
+
+    def stop_workers_w_start_timer(self):
+        logger.debug('stop_workers_w_start_timer')
+        self.set_start_timer()
+        for e in self.events:
+            e.clear()
+
     def _init_buttons(self):
         self.stop_button = QPushButton('Stop')
         self.stop_button.setEnabled(False)
@@ -171,7 +207,7 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(False)
 
         def on_start_button_clicked():
-            logger.info('start button clicked')
+            logger.debug('start button clicked')
             self.start_button.setEnabled(False)
             self.stop_button.setEnabled(True)
             for w in self.config_widgets:
@@ -179,18 +215,23 @@ class MainWindow(QMainWindow):
 
             output_dir = Path(self.output_edit.text())
             output_dir.mkdir(parents=True, exist_ok=True)
-            for e in self.events:
-                e.set()
+
+            if self.is_in_time():
+                self.start_workers()
+            else:
+                self.set_start_timer()
 
         def on_stop_button_clicked():
-            logger.info('stop button clicked')
+            logger.debug('stop button clicked')
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
             for w in self.config_widgets:
                 w.setEnabled(True)
 
-            for e in self.events:
-                e.clear()
+            self.statusBar().showMessage('Stopping workers', MSG_DURATION)
+            self.start_timer.stop()
+            self.stop_timer.stop()
+            self.stop_workers()
 
         self.stop_button.clicked.connect(on_stop_button_clicked)
         self.start_button.clicked.connect(on_start_button_clicked)
