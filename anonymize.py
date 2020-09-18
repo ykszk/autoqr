@@ -97,10 +97,7 @@ def anonymize_dcm(dcms, zip_filename):
     dcm_generator = dcm_utils.DcmGenerator(dcms, replace_rules, remove_rules)
     name_format = '{{:0{}d}}.dcm'.format(ceil(len(dcms)))
     dcm_utils.dcms2zip([name_format.format(i) for i in range(len(dcms))],
-                       dcm_generator,
-                       1,
-                       zip_filename,
-                       verbose=False)
+                       dcm_generator, 1, zip_filename)
 
     return new_pid
 

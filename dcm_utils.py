@@ -1,35 +1,22 @@
 import io
 import zipfile
-from datetime import datetime
-import json
-import re
-import decimal
-from dateutil.relativedelta import relativedelta
 import pydicom
 from pydicom.datadict import keyword_for_tag
-import tqdm
 
 
-def save_as_zip(contents,
-                compresslevel,
-                zip_filename=None,
-                verbose=False,
-                total=None):
+def save_as_zip(contents, compresslevel, zip_filename=None):
     '''
     Args:
         contents (iterable): Iterable object that returns (filename, content(bytes))
         compresslevel (int): Compression level for zipping. Specify -1 for no compression.
         zip_filename (str): Filename for zipped contents. If None, bytes is returned.
-        verbose (bool): Show progress bar
-        total (int): Passed to tqdm for in verbose mode.
     '''
     compression = zipfile.ZIP_STORED if compresslevel < 0 else zipfile.ZIP_DEFLATED
     with zipfile.ZipFile(zip_filename,
                          'w',
                          compression,
                          compresslevel=compresslevel) as zf:
-        for filename, content in tqdm.tqdm(
-                contents, total=total) if verbose else contents:
+        for filename, content in contents:
             zf.writestr(filename, content)
 
 
@@ -39,18 +26,14 @@ def dcm2bytes(dcm):
         return bio.getvalue()
 
 
-def dcms2zip(filenames, dcms, compresslevel, zip_filename, verbose=False):
+def dcms2zip(filenames, dcms, compresslevel, zip_filename):
     '''
     Args:
         compresslevel (int): Compression level for zipping. Specify -1 for no compression.
         zip_filename (str): Filename for zipped contents. If None, bytes is returned.
     '''
     generator = zip(filenames, (dcm2bytes(dcm) for dcm in dcms))
-    return save_as_zip(generator,
-                       compresslevel,
-                       zip_filename,
-                       verbose,
-                       total=len(filenames))
+    return save_as_zip(generator, compresslevel, zip_filename)
 
 
 def tag2int(tag_str):
@@ -72,41 +55,6 @@ def tag2str(tag):
     e.g. (8,16) -> '(0008,0010)'
     '''
     return '({:04X},{:04X})'.format(*tag)
-
-
-def compress_dups(d, k):
-    '''
-    Compress duplications.
-
-    Args:
-       d (dict): input dictionary
-       k (func): function that returns value
-    '''
-    compress = []
-    for key, rep_list in d.items():
-        first_value = None
-        for rep in rep_list:
-            old = k(rep)
-            if first_value is None:
-                first_value = old
-                continue
-
-            if first_value != old:
-                break
-
-        else:  # all equal
-            compress.append(key)
-
-    for key in compress:
-        d[key] = d[key][0][1]
-
-
-def compress_replace(replaces):
-    compress_dups(replaces, lambda r: r[1][0])
-
-
-def compress_remove(remove):
-    compress_dups(remove, lambda r: r[1])
 
 
 class DcmGenerator(object):
@@ -152,87 +100,3 @@ class DcmGenerator(object):
 
         self._i += 1
         return dcm
-
-
-def dataset2obj(ds):
-    return dict([(str(k).replace(' ', ''), serialize_tag(v.value))
-                 for k, v in ds.items()])
-
-
-def serialize_tag(o):
-    if isinstance(o, pydicom.sequence.Sequence):
-        return [dataset2obj(ds) for ds in o]
-    else:
-        return str(o)
-
-
-def write_json(filename, data):
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=2)
-
-
-def read_json(filename):
-    with open(filename, encoding='utf-8') as f:
-        return json.load(f)
-
-
-def now(format_str='%Y/%m/%d %H:%M:%S'):
-    '''
-    Return current datetime in str
-    '''
-    return datetime.today().strftime(format_str)
-
-
-def generalize_age(age_str, step_size):
-    '''
-    Generalize age string. (e.g. '032Y -> 30').
-    Return empty string if invalid age string is provided.
-
-    Args:
-        age_str (str): String that represents patient age.
-        step_size (number): Step size for generalization in years.
-    '''
-    m = re.match(r'^(\d+)([DWMY])$', age_str)
-    if m:
-        if m[2] == 'Y':
-            age = int(m[1])
-        elif m[2] == 'M':
-            age = int(m[1]) / 12
-        elif m[2] == 'W':
-            age = int(m[1]) / 52.1429
-        else:  # m[2] == 'D'
-            age = int(m[1]) / 365
-        generalized = decimal.Decimal(age / step_size).to_integral_value(
-            rounding=decimal.ROUND_HALF_UP) * step_size
-        return str(int(generalized))
-    else:
-        return ''
-
-
-def calc_age(data):
-    '''
-    Get age from removed information.
-    Return [Patient Age (0010,1010)] if it's available.
-    Calculate age from [Patient's Birth Date (0010,0030)] and [Study Date (0008,0020)]
-    '''
-    age_tag = '(0010,1010)'
-    if age_tag in data['remove'] and data['remove'][age_tag] != '':
-        return data['remove'][age_tag]
-    birth_date = data['remove']['(0010,0030)']
-    birth_date = datetime.strptime(birth_date, '%Y%m%d')
-    study_date = data['remove']['(0008,0020)']
-    study_date = datetime.strptime(study_date, '%Y%m%d')
-    delta = relativedelta(study_date, birth_date)
-    if delta.years > 0:
-        return str(delta.years) + 'Y'
-
-    if delta.months > 0:
-        return str(delta.months) + 'M'
-
-    if delta.weeks > 0:
-        return str(delta.weeks) + 'W'
-
-    if delta.days > 0:
-        return str(delta.days) + 'D'
-
-    return ''
