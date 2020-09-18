@@ -9,3 +9,6 @@ DICOM_SERVER = os.getenv('DICOM_SERVER')
 PORT = int(os.getenv('PORT'))
 AEC = os.getenv('AEC')
 AET = os.getenv('AET')
+
+START_TIME = os.getenv('START_TIME')
+STOP_TIME = os.getenv('STOP_TIME')

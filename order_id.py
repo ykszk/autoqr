@@ -16,6 +16,7 @@ from PyQt5.QtCore import Qt, QTimer
 from widgets import VLine, ClockLabel, TimeEdit
 from hm_clock import HMClock
 import qr
+import settings
 
 app = QApplication([])
 app.setStyle('Fusion')
@@ -113,14 +114,14 @@ class MainWindow(QMainWindow):
         period_gropu.setLayout(QHBoxLayout())
         period_gropu.layout().addWidget(QLabel('Start', self))
         self.start_time = TimeEdit()
-        self.start_time.setText('1900')
+        self.start_time.setText(settings.START_TIME)
         self.config_widgets.append(self.start_time)
         period_gropu.layout().addWidget(self.start_time)
         period_gropu.layout().addWidget(QLabel('Stop', self))
         self.stop_time = TimeEdit()
         self.start_time.textChanged.connect(self.on_period_change)
         self.stop_time.textChanged.connect(self.on_period_change)
-        self.stop_time.setText('0700')
+        self.stop_time.setText(settings.STOP_TIME)
         self.config_widgets.append(self.stop_time)
         period_gropu.layout().addWidget(self.stop_time)
 
