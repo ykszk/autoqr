@@ -44,15 +44,16 @@ def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
     start = datetime.datetime.now()
     logger.info('start %s %s', PatientID, AccessionNumber)
     try:
-        new_pid = qr.qr_anonymize_save(PatientID,
-                                       AccessionNumber,
-                                       outdir,
-                                       logger=logger)
+        new_pid, new_an = qr.qr_anonymize_save(PatientID,
+                                               AccessionNumber,
+                                               outdir,
+                                               logger=logger)
     except Exception as e:
         logger.error('%s', e)
         error_handler(PatientID, AccessionNumber, e)
         return
-    return_handler(PatientID, new_pid, datetime.datetime.now() - start)
+    return_handler(PatientID, new_pid, AccessionNumber, new_an,
+                   datetime.datetime.now() - start)
     logger.info('end %s %s', PatientID, AccessionNumber)
 
 
@@ -148,10 +149,12 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(output_group)
 
-    def _handle_result(self, original_pid, new_pid, t_delta):
+    def _handle_result(self, original_pid, new_pid, original_an, new_an,
+                       t_delta):
         table_lock.acquire()
         with open(self.table_filename, 'a') as f:
-            f.write('{},{}\n'.format(original_pid, new_pid))
+            f.write('{},{},{},{}\n'.format(original_pid, new_pid, original_an,
+                                           new_an))
         self.done_count += 1
         self.t_deltas.append(t_delta)
         mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(

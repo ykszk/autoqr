@@ -144,7 +144,7 @@ def qr_anonymize_save(PatientID: str,
             str(zipdir / new_series_uid), '.zip')
 
         anonymize.anonymize_dcm(datasets, str(zip_filename))
-    return new_pid
+    return new_pid, hash_utils.hash_id(AccessionNumber)
 
 
 def main():
