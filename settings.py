@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-dotenv_path = Path(__file__).parent / '.env'
+dotenv_path = Path(__file__).parent / 'config' / '.env'
 load_dotenv(dotenv_path)
 
 DICOM_SERVER = os.getenv('DICOM_SERVER')
