@@ -1,16 +1,13 @@
 import io
 import zipfile
-from collections import defaultdict
-from pathlib import Path
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 import json
 import re
 import decimal
+from dateutil.relativedelta import relativedelta
 import pydicom
 from pydicom.datadict import keyword_for_tag
 import tqdm
-import toml
 
 
 def save_as_zip(contents,
@@ -179,11 +176,11 @@ def read_json(filename):
         return json.load(f)
 
 
-def now(format='%Y/%m/%d %H:%M:%S'):
+def now(format_str='%Y/%m/%d %H:%M:%S'):
     '''
     Return current datetime in str
     '''
-    return datetime.today().strftime(format)
+    return datetime.today().strftime(format_str)
 
 
 def generalize_age(age_str, step_size):

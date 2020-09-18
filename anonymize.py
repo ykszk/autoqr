@@ -1,18 +1,9 @@
-import sys
 from pathlib import Path
-from collections import defaultdict
-from datetime import datetime
-import argparse
 from math import ceil
-import pandas as pd
 import pydicom
 import toml
 import hash_utils
 import dcm_utils
-
-from logging import basicConfig, getLogger, INFO
-basicConfig(level=INFO, format='%(asctime)s %(levelname)s :%(message)s')
-logger = getLogger(__name__)
 
 SOP_UID_PREFIX = '11.'
 STUDY_UID_PREFIX = '12.'

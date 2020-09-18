@@ -16,7 +16,7 @@ class VLine(QFrame):
 class ClockLabel(QLabel):
     def __init__(self,
                  parent=None,
-                 format='%H:%M:%S',
+                 format_str='%H:%M:%S',
                  tooltip_format='%Y/%m/%d'):
         '''
         Args:
@@ -24,7 +24,7 @@ class ClockLabel(QLabel):
             tooltip_format: datetime format for the tooltip
         '''
         super().__init__(parent)
-        self.format = format
+        self.format = format_str
         self.tooltip_format = tooltip_format
         self.updateClock()
         self.timer = QTimer(self)
