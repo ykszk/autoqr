@@ -1,4 +1,5 @@
-from logging import DEBUG
+from pathlib import Path
+import logging
 from pydicom.dataset import Dataset
 from pynetdicom import AE, evt, build_role
 from pynetdicom.sop_class import PatientRootQueryRetrieveInformationModelFind
@@ -9,9 +10,13 @@ from pynetdicom.sop_class import (PatientRootQueryRetrieveInformationModelGet,
 from logzero import setup_logger
 
 import settings
+import anonymize
+import hash_utils
 
 default_logger = setup_logger()
-default_logger.setLevel(DEBUG)
+default_logger.setLevel(logging.DEBUG)
+
+logging.getLogger('pynetdicom').setLevel(logging.WARNING)
 
 
 def query(ds: Dataset, logger=None):
@@ -75,7 +80,7 @@ def retrieve(ds, logger=None):
 
     responses = assoc.send_c_get(ds,
                                  PatientRootQueryRetrieveInformationModelGet)
-    for (status, identifier) in responses:
+    for (status, _) in responses:
         if not status:
             raise RuntimeError(
                 'Connection timed out, was aborted or received invalid response'
@@ -106,7 +111,10 @@ def qr(ds: Dataset, predicate=None, logger=None):
     return all_datasets
 
 
-def qr_save(PatientID: str, AccessionNumber: str, logger=None):
+def qr_anonymize_save(PatientID: str,
+                      AccessionNumber: str,
+                      outdir: str,
+                      logger=None):
     '''
     Q/R and save
     '''
@@ -122,6 +130,22 @@ def qr_save(PatientID: str, AccessionNumber: str, logger=None):
 
     all_datasets = qr(ds)
 
+    zip_root = Path(outdir)
+
+    for datasets in all_datasets:
+        dcm = datasets[0]
+        year, date = dcm.StudyDate[:4], dcm.StudyDate[4:]
+        new_pid = hash_utils.hash_id(dcm.PatientID)
+        new_study_uid = anonymize.anonymize_study_uid(dcm)
+        new_series_uid = anonymize.anonymize_series_uid(dcm)
+        zipdir = zip_root / year / date / new_pid / new_study_uid
+        zipdir.mkdir(parents=True, exist_ok=True)
+        zip_filename = anonymize.get_available_filename(
+            str(zipdir / new_series_uid), '.zip')
+
+        anonymize.anonymize_dcm(datasets, str(zip_filename))
+    return new_pid
+
 
 def main():
     ds = Dataset()
@@ -134,6 +158,7 @@ def main():
     ds.SeriesDescription = ''
 
     all_datasets = qr(ds)
+    print(len(all_datasets))
 
 
 if __name__ == "__main__":

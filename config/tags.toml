@@ -1,0 +1,23 @@
+remove = [
+  '0008,0014', # Instance Creator UID
+  # '0008,0050', # Accession Number
+  '0008,0080', # Institution Name
+  '0008,0090', # Referring Physician's Name
+  '0008,1010', # Station Name
+  '0008,1070', # Operator's Name
+  '0008,1110', # Referenced Study Sequence
+  '0008,1140', # Reference Image Sequence
+  '0010,0030', # Patient's Birth Date
+  '0010,1010', # Patient's Age
+  '0010,1020', # Patient's Size
+  # '0010,1030', # Patient's Weight
+  '0020,0010', # Study ID
+  '0020,0052', # Frame of Reference UID
+  '0032,1032', # Requesting Physician
+  '0032,1033', # Requesting Service
+  '0040,0253', # Performed Procedure Step ID
+  '0040,0275', # Request Attributes Sequence
+]
+replace = [
+  
+]

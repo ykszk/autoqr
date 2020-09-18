@@ -1,9 +1,9 @@
 import os
 import datetime
-import logging
 import time
+import logging
 from queue import Queue
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from pathlib import Path
 from logzero import logger
 import pandas as pd
@@ -15,6 +15,7 @@ from PyQt5.QtCore import Qt, QTimer
 
 from widgets import VLine, ClockLabel, TimeEdit
 from hm_clock import HMClock
+import qr
 
 app = QApplication([])
 app.setStyle('Fusion')
@@ -26,13 +27,28 @@ if os.name == 'nt':
 
 MSG_DURATION = 2000
 N_THREADS = 2
+START_INTERVAL = 2  # sec
 
 logger.setLevel(logging.DEBUG)
 
+table_lock = Lock()
 
-def job(job_id):
-    time.sleep(2)
-    logger.info(job_id)
+
+def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
+        error_handler):
+    start = datetime.datetime.now()
+    logger.info('start %s %s', PatientID, AccessionNumber)
+    try:
+        new_pid = qr.qr_anonymize_save(PatientID,
+                                       AccessionNumber,
+                                       outdir,
+                                       logger=logger)
+    except Exception as e:
+        logger.error('%s', e)
+        error_handler(PatientID, AccessionNumber, e)
+        return
+    return_handler(PatientID, new_pid, datetime.datetime.now() - start)
+    logger.info('end %s %s', PatientID, AccessionNumber)
 
 
 def worker(f, q: Queue, e: Event):
@@ -56,6 +72,10 @@ class MainWindow(QMainWindow):
         self.stop_timer.setSingleShot(True)
         self.stop_timer.timeout.connect(self.stop_workers_w_start_timer)
         self.task_queue = Queue()
+        self.table_filename = 'table.csv'
+        self.error_filename = 'errors.txt'
+        self.done_count = 0
+        self.t_deltas = []
         self.config_widgets = [
         ]  # widgets used for configuration. disabled during the execution
         self._init_widgets()
@@ -123,6 +143,33 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(output_group)
 
+    def _handle_result(self, original_pid, new_pid, t_delta):
+        table_lock.acquire()
+        with open(self.table_filename, 'a') as f:
+            f.write('{},{}\n'.format(original_pid, new_pid))
+        self.done_count += 1
+        self.t_deltas.append(t_delta)
+        mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
+            self.t_deltas)
+        rate = 1 / (mean_t_deltas.total_seconds() / 3600) * N_THREADS
+        self.log_label.setText('{} 完了. {:g} / h'.format(self.done_count, rate))
+        table_lock.release()
+        if self.done_count == len(self.df):
+            logger.info('all jobs are finished')
+            self.statusBar().showMessage('全例終了')
+            self.stop_workers()
+            self.start_button.setEnabled(False)
+            self.stop_button.setEnabled(False)
+            for w in self.config_widgets:
+                w.setEnabled(True)
+
+    def _handle_error(self, PatientID, AccessionNumber, e):
+        table_lock.acquire()
+        with open(self.error_filename, 'a') as f:
+            f.write('{} {} {}\n'.format(PatientID, AccessionNumber, e))
+        self.done_count += 1
+        table_lock.release()
+
     def _init_input(self):
         def on_input_button_clicked():
             fileName, _ = QFileDialog.getOpenFileName(self, 'リストを開く', '',
@@ -146,15 +193,23 @@ class MainWindow(QMainWindow):
                     min_date.date().strftime('%Y/%m/%d'),
                     max_date.date().strftime('%Y/%m/%d')))
 
+                self.done_count = 0
+                self.t_deltas = []
                 self.task_queue.queue.clear()
-                for oid in self.df['オーダー番号']:
-                    self.task_queue.put([oid])
+                for pid, oid in zip(self.df['受診者ID'], self.df['オーダー番号']):
+                    self.task_queue.put([
+                        pid, oid,
+                        self.output_edit.text(), self._handle_result,
+                        self._handle_error
+                    ])
                 self.update_button_state()
             except Exception as e:
                 logger.error(e)
                 dialog = QErrorMessage(self)
                 dialog.setWindowTitle('読み込みエラー')
                 dialog.showMessage('無効なファイルです。{}'.format(str(e)))
+
+            self.statusBar().showMessage('リストの読み込み完了')
 
         input_group = QGroupBox('患者リスト')
         input_group.setLayout(QVBoxLayout())
@@ -168,6 +223,15 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(input_group)
 
+    def _init_status(self):
+        group = QGroupBox('経過')
+        group.setLayout(QHBoxLayout())
+
+        self.log_label = QLabel('0 完了')
+        self.log_label.setAlignment(Qt.AlignCenter)
+        group.layout().addWidget(self.log_label)
+        self.layout.addWidget(group)
+
     def start_workers(self):
         logger.debug('start_workers')
         self.statusBar().showMessage('Starting workers', MSG_DURATION)
@@ -179,6 +243,7 @@ class MainWindow(QMainWindow):
                     stop)
         for e in self.events:
             e.set()
+            time.sleep(START_INTERVAL)
 
     def set_start_timer(self):
         start = HMClock.from_str(self.start_time.text())
@@ -215,6 +280,11 @@ class MainWindow(QMainWindow):
 
             output_dir = Path(self.output_edit.text())
             output_dir.mkdir(parents=True, exist_ok=True)
+            self.table_filename = output_dir / (
+                datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv')
+            self.error_filename = output_dir / (
+                datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
+                '_errors.txt')
 
             if self.is_in_time():
                 self.start_workers()
@@ -265,6 +335,7 @@ class MainWindow(QMainWindow):
         self._init_periods()
         self._init_output()
         self._init_input()
+        self._init_status()
         self._init_buttons()
 
     def update_button_state(self):
