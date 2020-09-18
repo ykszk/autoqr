@@ -1,4 +1,4 @@
-import os
+import platform
 import datetime
 import time
 import logging
@@ -20,8 +20,13 @@ import qr
 app = QApplication([])
 app.setStyle('Fusion')
 
-if os.name == 'nt':
+if platform.system() == 'Windows':
     font = QFont("Courier New", pointSize=10)
+    font.setStyleHint(QFont.Monospace)
+    app.setFont(font)
+
+if platform.system() == 'Darwin':
+    font = QFont("Osaka", pointSize=12)
     font.setStyleHint(QFont.Monospace)
     app.setFont(font)
 
