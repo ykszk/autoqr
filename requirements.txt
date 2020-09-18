@@ -5,3 +5,5 @@ pynetdicom
 pyqt5
 
 python-dotenv
+toml
+tqdm
