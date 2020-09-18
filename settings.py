@@ -6,5 +6,6 @@ dotenv_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path)
 
 DICOM_SERVER = os.getenv('DICOM_SERVER')
+PORT = int(os.getenv('PORT'))
 AEC = os.getenv('AEC')
 AET = os.getenv('AET')
