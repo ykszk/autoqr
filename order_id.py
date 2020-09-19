@@ -1,10 +1,12 @@
 import platform
 import datetime
 import time
+import argparse
 import logging
 from queue import Queue
 from threading import Thread, Event, Lock
 from pathlib import Path
+import logzero
 from logzero import logger
 import pandas as pd
 
@@ -248,8 +250,8 @@ class MainWindow(QMainWindow):
         stop_wait = stop - HMClock.now()
         self.stop_timer.start(stop_wait.to_msec() -
                               datetime.datetime.now().second * 1000)
-        logger.info('stop in %dh %dm at %s', stop_wait.hour, stop_wait.minute,
-                    stop)
+        logger.info('Scheduling stop in %dh %dm at %s', stop_wait.hour,
+                    stop_wait.minute, stop)
         for e in self.events:
             e.set()
             time.sleep(START_INTERVAL)
@@ -259,17 +261,18 @@ class MainWindow(QMainWindow):
         wait = start - HMClock.now()
         self.start_timer.start(wait.to_msec() -
                                datetime.datetime.now().second * 1000)
-        logger.info('start in %dh %dm at %s', wait.hour, wait.minute, start)
+        logger.info('Scheduling start in %dh %dm at %s', wait.hour,
+                    wait.minute, start)
         self.statusBar().showMessage('Scheduled to start at {}'.format(
             HMClock.from_str(self.start_time.text())))
 
     def stop_workers(self):
-        logger.debug('stop_workers')
+        logger.info('stop_workers')
         for e in self.events:
             e.clear()
 
     def stop_workers_w_start_timer(self):
-        logger.debug('stop_workers_w_start_timer')
+        logger.info('stop_workers_w_start_timer')
         self.set_start_timer()
         for e in self.events:
             e.clear()
@@ -362,6 +365,25 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Auto Q/R.')
+    parser.add_argument('--logfile',
+                        help="Log to the specified file",
+                        metavar='<filename>')
+
+    parser.add_argument(
+        '--loglevel',
+        help="Loglevel. default:%(default)s. choices:[%(choices)s]",
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        default='DEBUG',
+        metavar='<str>')
+
+    args = parser.parse_args()
+
+    if args.logfile:
+        logzero.logfile(args.logfile, maxBytes=1e7, backupCount=3)
+
+    logger.info('starting the application')
+
     window = MainWindow()
     window.show()
     app.exec_()
