@@ -12,3 +12,6 @@ AET = os.getenv('AET')
 
 START_TIME = os.getenv('START_TIME')
 STOP_TIME = os.getenv('STOP_TIME')
+
+N_THREADS = int(os.getenv('N_THREADS'))
+GETSCU = os.getenv('GETSCU')

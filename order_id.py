@@ -34,7 +34,7 @@ if platform.system() == 'Darwin':
     app.setFont(font)
 
 MSG_DURATION = 2000
-N_THREADS = 2
+N_THREADS = settings.N_THREADS
 START_INTERVAL = 2  # sec
 
 logger.setLevel(logging.DEBUG)

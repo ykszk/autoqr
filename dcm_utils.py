@@ -100,3 +100,49 @@ class DcmGenerator(object):
 
         self._i += 1
         return dcm
+
+
+class DcmGeneratorFN(object):
+    '''
+    Args:
+        replace_rules (list): list of tuples of (tag, new_value). new_value is either a str or a generator function.
+        remove_rules (list): list of tags to remove
+    '''
+    def __init__(self, fns, replace_rules, remove_rules):
+        self.fns = fns
+        self.length = len(fns)
+        self.replace_rules = replace_rules
+        self.remove_rules = remove_rules
+        self._i = 0
+
+    def __len__(self):
+        return self.length
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._i == self.length:
+            raise StopIteration()
+
+        fn = self.fns[self._i]
+        dcm = pydicom.dcmread(fn)
+
+        for tag, new_value in self.replace_rules:
+            if hasattr(new_value, '__call__'):
+                new_value = new_value(dcm)
+            if tag[0] == 0x0002:
+                dcm.file_meta[tag].value = new_value
+            else:
+                if tag in dcm:
+                    dcm[tag].value = new_value
+                else:
+                    kw = keyword_for_tag(tag)
+                    setattr(dcm, kw, new_value)
+
+        for tag in self.remove_rules:
+            if tag in dcm:
+                del dcm[tag]
+
+        self._i += 1
+        return dcm
