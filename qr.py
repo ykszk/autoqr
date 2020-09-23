@@ -94,7 +94,7 @@ def retrieve(ds, logger=None):
 
 def retrieve_dcmtk(ds, outdir, logger=None):
     logger = logger or default_logger
-    logger.debug('start retrieve')
+    logger.debug('start retrieve %s', ds.SeriesInstanceUID)
 
     base_arg = '{} {} {} -aet {} -aec {}'.format(settings.GETSCU,
                                                  settings.DICOM_SERVER,
@@ -115,7 +115,7 @@ def retrieve_dcmtk(ds, outdir, logger=None):
 
     subprocess.check_call(args)
 
-    logger.debug('end retrieve')
+    logger.debug('end retrieve %s', ds.SeriesInstanceUID)
     return
 
 
@@ -179,12 +179,15 @@ def qr_anonymize_save(PatientID: str,
 
     with tempfile.TemporaryDirectory() as temp:
         tmp_dir = Path(temp)
-        all_datasets = qr_dcmtk(ds, tmp_dir)
+        all_datasets = query(ds, logger)
 
         zip_root = Path(outdir)
 
         for datasets in all_datasets:
             dcm = datasets  #datasets[0]
+            ret_dir = tmp_dir / dcm.SeriesInstanceUID
+            ret_dir.mkdir(parents=True, exist_ok=True)
+            retrieve_dcmtk(dcm, ret_dir, logger)
             year, date = dcm.StudyDate[:4], dcm.StudyDate[4:]
             new_pid = hash_utils.hash_id(dcm.PatientID)
             new_study_uid = anonymize.anonymize_study_uid(dcm)
@@ -194,8 +197,7 @@ def qr_anonymize_save(PatientID: str,
             zip_filename = anonymize.get_available_filename(
                 str(zipdir / new_series_uid), '.zip')
 
-            anonymize.anonymize_dcm_dir(tmp_dir / dcm.SeriesInstanceUID,
-                                        str(zip_filename))
+            anonymize.anonymize_dcm_dir(ret_dir, str(zip_filename))
         return new_pid, hash_utils.hash_id(AccessionNumber)
 
 
