@@ -267,7 +267,7 @@ class MainWindow(QMainWindow):
             e.clear()
 
     def _init_buttons(self):
-        self.stop_button = QPushButton('Stop')
+        self.stop_button = QPushButton('Pause')
         self.stop_button.setEnabled(False)
         self.start_button = QPushButton('Start')
         self.start_button.setEnabled(False)
@@ -296,10 +296,8 @@ class MainWindow(QMainWindow):
             logger.debug('stop button clicked')
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
-            for w in self.config_widgets:
-                w.setEnabled(True)
 
-            self.statusBar().showMessage('Stopping workers', MSG_DURATION)
+            self.statusBar().showMessage('Pausing workers', MSG_DURATION)
             self.start_timer.stop()
             self.stop_timer.stop()
             self.stop_workers()
@@ -382,7 +380,8 @@ def main():
         app.setFont(font)
 
     try:
-        subprocess.check_call([settings.GETSCU, '-h'])
+        subprocess.check_call([settings.GETSCU, '-h'],
+                              stdout=subprocess.DEVNULL)
     except Exception as e:
         dialog = QErrorMessage()
         dialog.setWindowTitle('getscu エラー')
