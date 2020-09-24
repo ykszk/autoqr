@@ -1,6 +1,8 @@
+import sys
 import platform
 import datetime
 import time
+import subprocess
 import argparse
 import logging
 from queue import Queue
@@ -19,19 +21,6 @@ from widgets import VLine, ClockLabel, TimeEdit
 from hm_clock import HMClock
 import qr
 import settings
-
-app = QApplication([])
-app.setStyle('Fusion')
-
-if platform.system() == 'Windows':
-    font = QFont("Courier New", pointSize=10)
-    font.setStyleHint(QFont.Monospace)
-    app.setFont(font)
-
-if platform.system() == 'Darwin':
-    font = QFont("Osaka", pointSize=12)
-    font.setStyleHint(QFont.Monospace)
-    app.setFont(font)
 
 MSG_DURATION = 2000
 N_THREADS = settings.N_THREADS
@@ -379,6 +368,28 @@ def main():
 
     args = parser.parse_args()
 
+    app = QApplication([])
+    app.setStyle('Fusion')
+
+    if platform.system() == 'Windows':
+        font = QFont("Courier New", pointSize=10)
+        font.setStyleHint(QFont.Monospace)
+        app.setFont(font)
+
+    if platform.system() == 'Darwin':
+        font = QFont("Osaka", pointSize=12)
+        font.setStyleHint(QFont.Monospace)
+        app.setFont(font)
+
+    try:
+        subprocess.check_call([settings.GETSCU, '-h'])
+    except Exception as e:
+        dialog = QErrorMessage()
+        dialog.setWindowTitle('getscu エラー')
+        dialog.showMessage(str(e))
+        app.exec_()
+        return 1
+
     if args.logfile:
         logzero.logfile(args.logfile, maxBytes=1e7, backupCount=3)
 
@@ -388,6 +399,8 @@ def main():
     window.show()
     app.exec_()
 
+    return 0
+
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
