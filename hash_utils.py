@@ -8,7 +8,7 @@ def hash_id(pid, salt=None):
     if salt is None:
         salt = default_salt
     h = hashlib.md5((salt + pid + salt).encode())
-    return base64.b64encode(h.digest()).decode().rstrip('=').replace('/', '-')
+    return base64.b32encode(h.digest()).decode().rstrip('=')
 
 
 def get_default_salt():
