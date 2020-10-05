@@ -391,6 +391,7 @@ def main():
 
     if args.logfile:
         logzero.logfile(args.logfile, maxBytes=1e7, backupCount=3)
+    logger.setLevel(args.loglevel)
 
     logger.info('starting the application')
 
