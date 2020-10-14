@@ -180,12 +180,16 @@ class MainWindow(QMainWindow):
             try:
                 logger.info('Open input:%s', fileName)
                 self.df = pd.read_csv(fileName, encoding='cp932')
-                required_cols = ['オーダー番号', '受診者ID', '検査日(yyyy/MM/dd HH:mm)']
+                required_cols = [
+                    settings.COL_ACCESSION_NUMBER, settings.COL_PATIENT_ID,
+                    settings.COL_STUDY_DATE
+                ]
                 for c in required_cols:
                     if c not in self.df.columns:
                         raise Exception('{}がありません。'.format(c))
-                self.df['datetime'] = self.df['検査日(yyyy/MM/dd HH:mm)'].map(
-                    lambda d: datetime.datetime.strptime(d, '%Y/%m/%d %H:%M'))
+                self.df['datetime'] = self.df[settings.COL_STUDY_DATE].map(
+                    lambda d: datetime.datetime.strptime(
+                        d, settings.DATETIME_FORMAT))
                 min_date, max_date = min(self.df['datetime']), max(
                     self.df['datetime'])
                 self.input_label.setText('ファイル名：{}、総数：{}\n期間：{} ~ {}'.format(
@@ -196,7 +200,8 @@ class MainWindow(QMainWindow):
                 self.done_count = 0
                 self.t_deltas = []
                 self.task_queue.queue.clear()
-                for pid, oid in zip(self.df['受診者ID'], self.df['オーダー番号']):
+                for pid, oid in zip(self.df[settings.COL_PATIENT_ID],
+                                    self.df[settings.COL_ACCESSION_NUMBER]):
                     self.task_queue.put([
                         pid, oid,
                         self.output_edit.text(), self._handle_result,
