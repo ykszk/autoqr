@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from math import ceil
+from math import ceil, log10
 import pydicom
 import toml
 import hash_utils
@@ -96,7 +96,7 @@ def anonymize_dcm(dcms, zip_filename):
     replace_rules.append((ACCESSION_N_TAG, new_accession_n))
 
     dcm_generator = dcm_utils.DcmGenerator(dcms, replace_rules, remove_rules)
-    name_format = 'IMG{{:0{}d}}.dcm'.format(ceil(len(dcms)))
+    name_format = 'IMG{{:0{}d}}.dcm'.format(ceil(log10(len(dcms))))
     dcm_utils.dcms2zip([name_format.format(i) for i in range(len(dcms))],
                        dcm_generator, 1, zip_filename)
 
@@ -144,7 +144,7 @@ def anonymize_dcm_dir(indir, zip_filename):
     replace_rules.append((ACCESSION_N_TAG, new_accession_n))
 
     dcm_generator = dcm_utils.DcmGeneratorFN(fns, replace_rules, remove_rules)
-    name_format = 'IMG{{:0{}d}}.dcm'.format(ceil(len(fns)))
+    name_format = 'IMG{{:0{}d}}.dcm'.format(ceil(log10(len(fns))))
     dcm_utils.dcms2zip([name_format.format(i) for i in range(len(fns))],
                        dcm_generator, 1, zip_filename)
 
