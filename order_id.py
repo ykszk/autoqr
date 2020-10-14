@@ -288,6 +288,10 @@ class MainWindow(QMainWindow):
             output_dir.mkdir(parents=True, exist_ok=True)
             self.table_filename = output_dir / (
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv')
+            with open(self.table_filename, 'w') as f:
+                f.write(
+                    'OriginalPatientID,AnonymizedPatientID,OriginalAccessionNumber,AnonymizedAccessionNumber\n'
+                )
             self.error_filename = output_dir / (
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
                 '_errors.txt')
