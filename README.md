@@ -10,8 +10,6 @@
 ``` sh
 # Install packages
 pip install -r requirements.txt
-# Ignore changes to .env file
-git update-index --assume-unchanged config/.env
 # Pre-commit hooks
 pre-commit install
 ```

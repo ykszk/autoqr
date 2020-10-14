@@ -20,7 +20,7 @@ from PyQt5.QtCore import Qt, QTimer
 from widgets import VLine, ClockLabel, TimeEdit
 from hm_clock import HMClock
 import qr
-import settings
+from config import settings
 
 MSG_DURATION = 2000
 N_THREADS = settings.N_THREADS
@@ -179,7 +179,7 @@ class MainWindow(QMainWindow):
 
             try:
                 logger.info('Open input:%s', fileName)
-                self.df = pd.read_csv(fileName, encoding='cp932')
+                self.df = pd.read_csv(fileName, encoding='cp932', dtype=str)
                 required_cols = [
                     settings.COL_ACCESSION_NUMBER, settings.COL_PATIENT_ID,
                     settings.COL_STUDY_DATE

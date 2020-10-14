@@ -10,7 +10,7 @@ from pynetdicom.sop_class import (PatientRootQueryRetrieveInformationModelGet,
 
 from logzero import setup_logger
 
-import settings
+from config import settings
 import anonymize
 import hash_utils
 

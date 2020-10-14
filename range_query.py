@@ -1,15 +1,12 @@
 import argparse
 import sys
-from datetime import datetime, timedelta
 
 import pandas as pd
 from pydicom.dataset import Dataset
-import pynetdicom
-import logzero
 from logzero import logger
+import tqdm
 
 import qr
-import settings
 import date_utils
 
 EXT_TABLE = {
@@ -51,8 +48,11 @@ def main():
         '--loglevel',
         help="Loglevel. default:%(default)s. choices:[%(choices)s]",
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='DEBUG',
+        default='INFO',
         metavar='<level>')
+    parser.add_argument('--progress',
+                        help="Show progress bar",
+                        action='store_true')
 
     args = parser.parse_args()
 
@@ -72,27 +72,33 @@ def main():
     logger.info('%s - %s (%s days)', args.start, args.end, date_delta.days + 1)
 
     attributes = [
-        'PatientID', 'Modality', 'StudyDescription', 'AccessionNumber',
-        'StudyInstanceUID'
+        'PatientID', 'Modality', 'StudyDate', 'StudyDescription',
+        'AccessionNumber', 'StudyInstanceUID'
     ]
 
+    logger.info('Start querying')
     all_result = []
-    for part_start, part_end in date_utils.split(start_date, end_date,
-                                                 args.step):
+    generator = date_utils.split(start_date, end_date, args.step)
+    if args.progress:
+        generator = tqdm.tqdm(generator,
+                              total=date_utils.split_size(
+                                  start_date, end_date, args.step))
+    for part_start, part_end in generator:
         study_date = '{}-{}'.format(date_utils.date2str(part_start),
                                     date_utils.date2str(part_end))
-        print(study_date)
 
         ds = Dataset()
-        ds.StudyDate = study_date
-        ds.QueryRetrieveLevel = args.qrlevel
         for attr in attributes:
             setattr(ds, attr, '')
+        ds.StudyDate = study_date
+        ds.QueryRetrieveLevel = args.qrlevel
 
         query_result = qr.query(ds, logger=logger)
         if query_result:
             all_result.extend([[getattr(r, attr) for attr in attributes]
                                for r in query_result])
+    logger.info('End querying')
+    logger.info('%d query results', len(all_result))
 
     df = pd.DataFrame(all_result, columns=attributes)
     getattr(df, EXT_TABLE[args.ext])(output_filename, index=False)
