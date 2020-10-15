@@ -389,11 +389,13 @@ def main():
         app.setFont(font)
 
     try:
-        subprocess.check_call([settings.GETSCU, '-h'],
-                              stdout=subprocess.DEVNULL)
+        subprocess.check_call(
+            [str(Path(settings.DCMTK_BINDIR) / 'movescu'), '-h'],
+            stdout=subprocess.DEVNULL)
     except Exception as e:
+        logger.error(e)
         dialog = QErrorMessage()
-        dialog.setWindowTitle('getscu エラー')
+        dialog.setWindowTitle('dcmtk エラー')
         dialog.showMessage(str(e))
         app.exec_()
         return 1

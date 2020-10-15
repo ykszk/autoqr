@@ -11,10 +11,11 @@ class Defaults():
         self.START_TIME = '1800'
         self.STOP_TIME = '0700'
         self.__N_THREADS = 2
-        self.GETSCU = 'getscu'
+        self.DCMTK_BINDIR = ''
+        self.__RECEIVE_PORT = 4200
         self.COL_ACCESSION_NUMBER = 'オーダー番号'
-        self.COL_STUDY_DATE = '受診者ID'
-        self.COL_PATIENT_ID = '検査日(yyyy/MM/dd HH:mm)'
+        self.COL_STUDY_DATE = '検査日(yyyy/MM/dd HH:mm)'
+        self.COL_PATIENT_ID = '受診者ID'
         self.DATETIME_FORMAT = '%Y/%m/%d %H:%M'
 
     @property
@@ -32,6 +33,14 @@ class Defaults():
     @PORT.setter
     def PORT(self, port_str: str):
         self.__PORT = int(port_str)
+
+    @property
+    def RECEIVE_PORT(self):
+        return self.__RECEIVE_PORT
+
+    @RECEIVE_PORT.setter
+    def RECEIVE_PORT(self, port_str: str):
+        self.__RECEIVE_PORT = int(port_str)
 
     def load(self, filename, logger=None):
         with open(filename, encoding='utf8') as f:

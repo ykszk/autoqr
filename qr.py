@@ -96,23 +96,26 @@ def retrieve_dcmtk(ds, outdir, logger=None):
     logger = logger or default_logger
     logger.debug('start retrieve %s', ds.SeriesInstanceUID)
 
-    base_arg = '{} {} {} -aet {} -aec {}'.format(settings.GETSCU,
-                                                 settings.DICOM_SERVER,
-                                                 settings.PORT, settings.AET,
-                                                 settings.AEC)
+    base_arg = '{} {} {} -aet {} -aec {}'.format(
+        Path(settings.DCMTK_BINDIR) / 'movescu', settings.DICOM_SERVER,
+        settings.PORT, settings.AET, settings.AEC)
     level_arg = '-k 0008,0052=SERIES'
     pid_arg = '-k 0010,0020={}'.format(ds.PatientID)
+    study_arg = '-k 0020,000D={}'.format(ds.StudyInstanceUID)
     series_arg = '-k 0020,000E={}'.format(ds.SeriesInstanceUID)
     od_arg = '-od {}'.format(outdir)
 
     args = sum([
         base_arg.split(),
+        '+P {}'.format(settings.RECEIVE_PORT).split(),
         level_arg.split(),
         pid_arg.split(),
+        study_arg.split(),
         series_arg.split(),
         od_arg.split(),
     ], [])
 
+    logger.debug(' '.join(args))
     subprocess.check_call(args)
 
     logger.debug('end retrieve %s', ds.SeriesInstanceUID)
