@@ -16,7 +16,11 @@ EXT_TABLE = {
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Range based DICOM query.')
+    parser = argparse.ArgumentParser(
+        description='Range based DICOM query.',
+        epilog=
+        'Use --add option with no value to query for additional fields. e.g. --add "ImageType="'
+    )
     parser.add_argument('start',
                         help="Range start. (YYYYmmdd) e.g. 20201014",
                         metavar='<start>')
@@ -37,6 +41,10 @@ def main():
         default='.csv',
         choices=EXT_TABLE.keys(),
         metavar='<ext>')
+    parser.add_argument('--add',
+                        help="Additional condition for the query",
+                        metavar='<key=value>',
+                        nargs='+')
     parser.add_argument(
         '--qrlevel',
         help=
@@ -76,6 +84,14 @@ def main():
         'AccessionNumber', 'StudyInstanceUID'
     ]
 
+    kvs = []
+    for keyvalue in args.add:
+        key, value = keyvalue.split('=')
+        kvs.append((key, value))
+        logger.info('Additional attribute %s=%s', key, value)
+        if key not in attributes:
+            attributes.append(key)
+
     logger.info('Start querying')
     all_result = []
     generator = date_utils.split(start_date, end_date, args.step)
@@ -92,6 +108,8 @@ def main():
             setattr(ds, attr, '')
         ds.StudyDate = study_date
         ds.QueryRetrieveLevel = args.qrlevel
+        for key, value in kvs:
+            setattr(ds, key, value)
 
         query_result = qr.query(ds, logger=logger)
         if query_result:

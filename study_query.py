@@ -1,13 +1,12 @@
 import argparse
 import sys
+import io
 
 import pandas as pd
 from pydicom.dataset import Dataset
 from logzero import logger
-import tqdm
 
 import qr
-import date_utils
 
 EXT_TABLE = {
     '.csv': 'to_csv',
@@ -19,9 +18,16 @@ def main():
     parser = argparse.ArgumentParser(
         description='Query by study instance UID.')
     parser.add_argument('UID', help="Study instance UID", metavar='<UID>')
-    parser.add_argument('--output',
-                        help="Output filename. Default: <UID>.csv",
-                        metavar='<output>')
+    parser.add_argument(
+        '-a',
+        '--attr',
+        help="Additional attribute(s). Can be set multiple times.",
+        metavar='<str>',
+        action='append')
+    parser.add_argument(
+        '--output',
+        help="Output filename. Specify - to use stdout. Default: <UID>.csv",
+        metavar='<output>')
     parser.add_argument(
         '--loglevel',
         help="Loglevel. default:%(default)s. choices:[%(choices)s]",
@@ -38,8 +44,11 @@ def main():
 
     attributes = [
         'PatientID', 'Modality', 'StudyDate', 'StudyDescription',
-        'AccessionNumber', 'StudyInstanceUID'
+        'AccessionNumber', 'StudyInstanceUID', 'SeriesInstanceUID',
+        'SeriesDescription'
     ]
+
+    attributes.extend(args.attr)
 
     ds = Dataset()
     for attr in attributes:
@@ -52,7 +61,12 @@ def main():
                        for r in query_result],
                       columns=attributes)
     logger.info('%d query results', len(df))
-    df.to_csv(output_filename, index=False)
+    if output_filename == '-':
+        s = io.StringIO()
+        df.to_csv(s)
+        print(s.getvalue())
+    else:
+        df.to_csv(output_filename, index=False)
     return 0
 
 
