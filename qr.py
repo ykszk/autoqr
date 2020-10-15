@@ -20,18 +20,35 @@ default_logger.setLevel(logging.DEBUG)
 logging.getLogger('pynetdicom').setLevel(logging.WARNING)
 
 
-def query(ds: Dataset, logger=None):
-    logger = logger or default_logger
-    logger.debug('start query')
+def associate():
     ae = AE(ae_title=settings.AET)
     ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
     assoc = ae.associate(settings.DICOM_SERVER,
                          settings.PORT,
                          ae_title=settings.AEC)
-    datasets = []
-
     if not assoc.is_established:
         raise RuntimeError('Association rejected, aborted or never connected')
+    return assoc
+
+
+def query(ds: Dataset, ae=None, logger=None):
+    '''
+    Args:
+        ae: AE with an association
+    '''
+    logger = logger or default_logger
+    logger.debug('start query')
+    if ae is None:
+        ae = AE(ae_title=settings.AET)
+        ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
+        ae.associate(settings.DICOM_SERVER,
+                     settings.PORT,
+                     ae_title=settings.AEC)
+    assoc = ae.active_associations[0]
+    if not assoc.is_established:
+        raise RuntimeError('Association rejected, aborted or never connected')
+
+    datasets = []
 
     responses = assoc.send_c_find(
         ds, PatientRootQueryRetrieveInformationModelFind)
