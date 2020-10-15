@@ -1,4 +1,5 @@
 # Q/R for DICOM
+[![codecov](https://codecov.io/gh/yk-szk/autoqr/branch/master/graph/badge.svg)](https://codecov.io/gh/yk-szk/autoqr)
 
 - Sequentially execute Q/R
 - Scheduled execution
