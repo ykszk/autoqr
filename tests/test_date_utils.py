@@ -42,6 +42,11 @@ class TestDateUtils(unittest.TestCase):
         self.assertEqual(split_result[-1][0], datetime(2000, 1, 9))
         self.assertEqual(split_result[-1][1], end)
 
+        # step = 2, one day
+        split_result = list(date_utils.split(start, start, 2))
+        self.assertEqual(split_result[0][0], start)
+        self.assertEqual(split_result[0][1], start)
+
         # step = 3
         split_result = list(date_utils.split(start, end, 3))
         self.assertEqual(split_result[0][0], start)

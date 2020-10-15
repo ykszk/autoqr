@@ -12,7 +12,7 @@ def date2str(date: datetime):
 
 def split(start: datetime, end: datetime, step: str):
     days = (end - start).days + 1
-    part_start, part_end = start, start + timedelta(days=step - 1)
+    part_start, part_end = start, min(start + timedelta(days=step - 1), end)
     for _ in range(math.ceil(days / step)):
         yield (part_start, part_end)
         part_start = part_start + timedelta(days=step)

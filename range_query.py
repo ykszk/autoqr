@@ -1,5 +1,6 @@
 import argparse
 import sys
+import io
 
 import pandas as pd
 from pydicom.dataset import Dataset
@@ -44,6 +45,7 @@ def main():
     parser.add_argument('--add',
                         help="Additional condition for the query",
                         metavar='<key=value>',
+                        default=[],
                         nargs='+')
     parser.add_argument(
         '--qrlevel',
@@ -102,6 +104,7 @@ def main():
     for part_start, part_end in generator:
         study_date = '{}-{}'.format(date_utils.date2str(part_start),
                                     date_utils.date2str(part_end))
+        logger.debug(study_date)
 
         ds = Dataset()
         for attr in attributes:
@@ -119,7 +122,12 @@ def main():
     logger.info('%d query results', len(all_result))
 
     df = pd.DataFrame(all_result, columns=attributes)
-    getattr(df, EXT_TABLE[args.ext])(output_filename, index=False)
+    if output_filename == '-':
+        s = io.StringIO()
+        getattr(df, EXT_TABLE[args.ext])(s, index=False)
+        print(s.getvalue())
+    else:
+        getattr(df, EXT_TABLE[args.ext])(output_filename, index=False)
     return 0
 
 
