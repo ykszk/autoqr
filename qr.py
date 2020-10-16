@@ -2,6 +2,8 @@ from pathlib import Path
 import subprocess, tempfile
 import logging
 import threading
+import shutil
+import pydicom
 from pydicom.dataset import Dataset
 from pynetdicom import AE, evt, build_role
 from pynetdicom.sop_class import PatientRootQueryRetrieveInformationModelFind
@@ -112,7 +114,10 @@ def retrieve(ds, logger=None):
 
 def retrieve_dcmtk(ds, outdir, logger=None):
     logger = logger or default_logger
-    logger.debug('start retrieve %s', ds.SeriesInstanceUID)
+    series_uid = ds.SeriesInstanceUID
+    if not isinstance(series_uid, str):
+        series_uid = '\\'.join(series_uid)
+    logger.debug('start retrieve %s', series_uid)
 
     base_arg = '{} {} {} -aet {} -aec {}'.format(
         Path(settings.DCMTK_BINDIR) / 'movescu', settings.DICOM_SERVER,
@@ -120,7 +125,7 @@ def retrieve_dcmtk(ds, outdir, logger=None):
     level_arg = '-k 0008,0052=SERIES'
     pid_arg = '-k 0010,0020={}'.format(ds.PatientID)
     study_arg = '-k 0020,000D={}'.format(ds.StudyInstanceUID)
-    series_arg = '-k 0020,000E={}'.format(ds.SeriesInstanceUID)
+    series_arg = '-k 0020,000E={}'.format(series_uid)
     od_arg = '-od {}'.format(outdir)
 
     args = sum([
@@ -200,22 +205,39 @@ def qr_anonymize_save(PatientID: str,
     ds.SeriesDescription = ''
     ds.ImageType = ''
 
-    with tempfile.TemporaryDirectory() as temp:
-        tmp_dir = Path(temp)
-        all_datasets = query(ds, logger=logger)
+    temp = tempfile.mkdtemp()
+    tmp_dir = Path(temp)
+    all_datasets = query(ds, logger=logger)
 
-        if predicate is not None:
-            all_datasets = [ds for ds in all_datasets if predicate(ds)]
-            logger.debug('Filtering done %d', len(all_datasets))
+    if predicate is not None:
+        all_datasets = [ds for ds in all_datasets if predicate(ds)]
+        logger.debug('Filtering done %d', len(all_datasets))
 
-        zip_root = Path(outdir)
+    zip_root = Path(outdir)
 
-        threads = []
-        for datasets in all_datasets:
-            dcm = datasets  #datasets[0]
-            ret_dir = tmp_dir / dcm.SeriesInstanceUID
-            ret_dir.mkdir(parents=True, exist_ok=True)
-            retrieve_dcmtk(dcm, ret_dir, logger)
+    list_suid = [dcm.SeriesInstanceUID for dcm in all_datasets]
+    dcm = all_datasets[0]
+    new_pid = hash_utils.hash_id(dcm.PatientID)
+
+    ds = Dataset()
+    ds.PatientID = dcm.PatientID
+    ds.StudyInstanceUID = dcm.StudyInstanceUID
+    ds.SeriesInstanceUID = '\\'.join(list_suid)
+    retrieve_dcmtk(ds, temp, logger)
+
+    def target():
+        logger.debug('Start anonymize %s', ds.StudyInstanceUID)
+        for dcm in all_datasets:
+            series_dir = tmp_dir / dcm.SeriesInstanceUID
+            series_dir.mkdir(parents=True, exist_ok=True)
+        for dcm_fn in sorted(tmp_dir.glob('*')):
+            if dcm_fn.is_dir():
+                continue
+            dcm = pydicom.dcmread(str(dcm_fn),
+                                  specific_tags=['SeriesInstanceUID'],
+                                  stop_before_pixels=True)
+            shutil.move(dcm_fn, tmp_dir / dcm.SeriesInstanceUID / dcm_fn.name)
+        for dcm in all_datasets:
             year, date = dcm.StudyDate[:4], dcm.StudyDate[4:]
             new_pid = hash_utils.hash_id(dcm.PatientID)
             new_study_uid = anonymize.anonymize_study_uid(dcm)
@@ -225,13 +247,14 @@ def qr_anonymize_save(PatientID: str,
             zip_filename = anonymize.get_available_filename(
                 str(zipdir / new_series_uid), '.zip')
 
-            t = threading.Thread(target=anonymize.anonymize_dcm_dir,
-                                 args=(ret_dir, str(zip_filename)))
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-        return new_pid, hash_utils.hash_id(AccessionNumber)
+            anonymize.anonymize_dcm_dir(tmp_dir / dcm.SeriesInstanceUID,
+                                        str(zip_filename))
+        shutil.rmtree(temp)
+        logger.debug('End anonymize %s', ds.StudyInstanceUID)
+
+    t = threading.Thread(target=target)
+    t.start()
+    return new_pid, hash_utils.hash_id(AccessionNumber)
 
 
 def is_original_image(ds: Dataset):
