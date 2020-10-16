@@ -23,12 +23,8 @@ import qr
 from config import settings
 
 MSG_DURATION = 2000
-N_THREADS = settings.N_THREADS
-START_INTERVAL = 2  # sec
 
 logger.setLevel(logging.DEBUG)
-
-table_lock = Lock()
 
 
 def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
@@ -39,7 +35,7 @@ def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
         new_pid, new_an = qr.qr_anonymize_save(PatientID,
                                                AccessionNumber,
                                                outdir,
-                                               predicate=qr.is_original,
+                                               predicate=qr.is_original_image,
                                                logger=logger)
     except Exception as e:
         logger.error('%s', e)
@@ -62,8 +58,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.df = None
-        self.threads = []
-        self.events = []
         self.start_timer = QTimer(self)
         self.start_timer.setSingleShot(True)
         self.start_timer.timeout.connect(self.start_workers)
@@ -79,14 +73,12 @@ class MainWindow(QMainWindow):
         ]  # widgets used for configuration. disabled during the execution
         self._init_widgets()
 
-        for _ in range(N_THREADS):
-            e = Event()
-            e.clear()
-            self.events.append(e)
-            t = Thread(target=worker, args=(job, self.task_queue, e))
-            t.setDaemon(True)
-            self.threads.append(t)
-            t.start()
+        self.event = Event()
+        self.event.clear()
+        self.thread = Thread(target=worker,
+                             args=(job, self.task_queue, self.event))
+        self.thread.setDaemon(True)
+        self.thread.start()
 
     def is_in_time(self):
         start = HMClock.from_str(self.start_time.text())
@@ -144,7 +136,6 @@ class MainWindow(QMainWindow):
 
     def _handle_result(self, original_pid, new_pid, original_an, new_an,
                        t_delta):
-        table_lock.acquire()
         with open(self.table_filename, 'a') as f:
             f.write('{},{},{},{}\n'.format(original_pid, new_pid, original_an,
                                            new_an))
@@ -152,9 +143,8 @@ class MainWindow(QMainWindow):
         self.t_deltas.append(t_delta)
         mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
             self.t_deltas)
-        rate = 1 / (mean_t_deltas.total_seconds() / 3600) * N_THREADS
+        rate = 1 / (mean_t_deltas.total_seconds() / 3600)
         self.log_label.setText('{} 完了. {:g} / h'.format(self.done_count, rate))
-        table_lock.release()
         if self.done_count == len(self.df):
             logger.info('all jobs are finished')
             self.statusBar().showMessage('全例終了')
@@ -165,11 +155,9 @@ class MainWindow(QMainWindow):
                 w.setEnabled(True)
 
     def _handle_error(self, PatientID, AccessionNumber, e):
-        table_lock.acquire()
         with open(self.error_filename, 'a') as f:
             f.write('{} {} {}\n'.format(PatientID, AccessionNumber, e))
         self.done_count += 1
-        table_lock.release()
 
     def _init_input(self):
         def on_input_button_clicked():
@@ -247,9 +235,7 @@ class MainWindow(QMainWindow):
                               datetime.datetime.now().second * 1000)
         logger.info('Scheduling stop in %dh %dm at %s', stop_wait.hour,
                     stop_wait.minute, stop)
-        for e in self.events:
-            e.set()
-            time.sleep(START_INTERVAL)
+        self.event.set()
 
     def set_start_timer(self):
         start = HMClock.from_str(self.start_time.text())
@@ -263,14 +249,12 @@ class MainWindow(QMainWindow):
 
     def stop_workers(self):
         logger.info('stop_workers')
-        for e in self.events:
-            e.clear()
+        self.event.clear()
 
     def stop_workers_w_start_timer(self):
         logger.info('stop_workers_w_start_timer')
         self.set_start_timer()
-        for e in self.events:
-            e.clear()
+        self.event.clear()
 
     def _init_buttons(self):
         self.stop_button = QPushButton('Pause')

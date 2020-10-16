@@ -10,21 +10,12 @@ class Defaults():
         self.AET = 'AUTOQR'  # Client's application Entity Title
         self.START_TIME = '1800'
         self.STOP_TIME = '0700'
-        self.__N_THREADS = 2
         self.DCMTK_BINDIR = ''
         self.__RECEIVE_PORT = 4200
         self.COL_ACCESSION_NUMBER = 'オーダー番号'
         self.COL_STUDY_DATE = '検査日(yyyy/MM/dd HH:mm)'
         self.COL_PATIENT_ID = '受診者ID'
         self.DATETIME_FORMAT = '%Y/%m/%d %H:%M'
-
-    @property
-    def N_THREADS(self):
-        return self.__N_THREADS
-
-    @N_THREADS.setter
-    def N_THREADS(self, n_str: str):
-        self.__N_THREADS = int(n_str)
 
     @property
     def PORT(self):
