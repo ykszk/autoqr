@@ -39,6 +39,7 @@ def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
         new_pid, new_an = qr.qr_anonymize_save(PatientID,
                                                AccessionNumber,
                                                outdir,
+                                               predicate=qr.is_original,
                                                logger=logger)
     except Exception as e:
         logger.error('%s', e)

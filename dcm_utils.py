@@ -141,7 +141,9 @@ class DcmGeneratorFN(object):
                     setattr(dcm, kw, new_value)
 
         for tag in self.remove_rules:
-            if tag in dcm:
+            if tag[0] == 0x0002 and tag in dcm.file_meta:
+                del dcm.file_meta[tag]
+            elif tag in dcm:
                 del dcm[tag]
 
         self._i += 1

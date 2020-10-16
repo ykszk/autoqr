@@ -1,6 +1,6 @@
 remove = [
+  '0002,0016', #Source Application Entity Title
   '0008,0014', # Instance Creator UID
-  # '0008,0050', # Accession Number
   '0008,0080', # Institution Name
   '0008,0090', # Referring Physician's Name
   '0008,1010', # Station Name
@@ -17,6 +17,7 @@ remove = [
   '0032,1033', # Requesting Service
   '0040,0253', # Performed Procedure Step ID
   '0040,0275', # Request Attributes Sequence
+  '0040,2017', # Filter Order Number Imaging Service Request
 ]
 replace = [
   

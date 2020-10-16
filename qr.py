@@ -31,7 +31,7 @@ def associate():
     return assoc
 
 
-def query(ds: Dataset, ae=None, logger=None):
+def query(ds: Dataset, logger=None, ae=None):
     '''
     Args:
         ae: AE with an association
@@ -182,6 +182,7 @@ def qr_dcmtk(ds: Dataset, outdir, predicate=None, logger=None):
 def qr_anonymize_save(PatientID: str,
                       AccessionNumber: str,
                       outdir: str,
+                      predicate=None,
                       logger=None):
     '''
     Q/R and save
@@ -196,10 +197,15 @@ def qr_anonymize_save(PatientID: str,
     ds.Modality = ''
     ds.AccessionNumber = AccessionNumber
     ds.SeriesDescription = ''
+    ds.ImageType = ''
 
     with tempfile.TemporaryDirectory() as temp:
         tmp_dir = Path(temp)
-        all_datasets = query(ds, logger)
+        all_datasets = query(ds, logger=logger)
+
+        if predicate is not None:
+            all_datasets = [ds for ds in all_datasets if predicate(ds)]
+            logger.debug('Filtering done %d', len(all_datasets))
 
         zip_root = Path(outdir)
 
@@ -219,6 +225,16 @@ def qr_anonymize_save(PatientID: str,
 
             anonymize.anonymize_dcm_dir(ret_dir, str(zip_filename))
         return new_pid, hash_utils.hash_id(AccessionNumber)
+
+
+def is_original(ds: Dataset):
+    try:
+        if ds.ImageType[0] == 'ORIGINAL':
+            return True
+    except Exception:
+        pass
+
+    return False
 
 
 def main():
