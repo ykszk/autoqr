@@ -15,6 +15,7 @@ python order_id.py
 - `scripts/split_csv.py`: Split csv by the number of rows
 - `scripts/concat_csv.py`: Concatenate multiple csv files
 - `scripts/dcmsendall.py`: Useless since dcmsend has the same functionality.
+- `scripts/remove_original.py`: Remove columns containing "original".
 
 ## Development
 
