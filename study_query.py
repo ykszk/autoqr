@@ -23,6 +23,7 @@ def main():
         '--attr',
         help="Additional attribute(s). Can be set multiple times.",
         metavar='<str>',
+        default=[],
         action='append')
     parser.add_argument(
         '--output',
