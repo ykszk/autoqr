@@ -226,7 +226,7 @@ def qr_anonymize_save(PatientID: str,
     retrieve_dcmtk(ds, temp, logger)
 
     def target():
-        logger.debug('Start anonymize %s', ds.StudyInstanceUID)
+        logger.info('Start anonymize %s', AccessionNumber)
         for dcm in all_datasets:
             series_dir = tmp_dir / dcm.SeriesInstanceUID
             series_dir.mkdir(parents=True, exist_ok=True)
@@ -250,7 +250,7 @@ def qr_anonymize_save(PatientID: str,
             anonymize.anonymize_dcm_dir(tmp_dir / dcm.SeriesInstanceUID,
                                         str(zip_filename))
         shutil.rmtree(temp)
-        logger.debug('End anonymize %s', ds.StudyInstanceUID)
+        logger.info('End anonymize %s', AccessionNumber)
 
     t = threading.Thread(target=target)
     t.start()

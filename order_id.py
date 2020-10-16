@@ -13,7 +13,7 @@ from logzero import logger
 import pandas as pd
 
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout
-from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QErrorMessage
+from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QCheckBox, QErrorMessage
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QTimer
 
@@ -30,7 +30,8 @@ logger.setLevel(logging.DEBUG)
 def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
         error_handler):
     start = datetime.datetime.now()
-    logger.info('start %s %s', PatientID, AccessionNumber)
+    logger.info('start retrieve and anonymize %s %s', PatientID,
+                AccessionNumber)
     try:
         new_pid, new_an = qr.qr_anonymize_save(PatientID,
                                                AccessionNumber,
@@ -43,7 +44,7 @@ def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
         return
     return_handler(PatientID, new_pid, AccessionNumber, new_an,
                    datetime.datetime.now() - start)
-    logger.info('end %s %s', PatientID, AccessionNumber)
+    logger.info('end retrieve and anonymize %s %s', PatientID, AccessionNumber)
 
 
 def worker(f, q: Queue, e: Event):
@@ -87,29 +88,28 @@ class MainWindow(QMainWindow):
 
         return now.is_between(start, stop)
 
-    def on_period_change(self, _: str):
-        if self.is_in_time():
-            self.period_label.setText('実行時間内')
-        else:
-            self.period_label.setText('実行時間外')
-
     def _init_periods(self):
-        period_gropu = QGroupBox('開始・終了時間')
-        period_gropu.setLayout(QHBoxLayout())
-        period_gropu.layout().addWidget(QLabel('Start', self))
+        period_group = QGroupBox('開始・終了時間')
+        period_group.setLayout(QVBoxLayout())
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(QLabel('開始', self))
         self.start_time = TimeEdit()
         self.start_time.setText(settings.START_TIME)
         self.config_widgets.append(self.start_time)
-        period_gropu.layout().addWidget(self.start_time)
-        period_gropu.layout().addWidget(QLabel('Stop', self))
+        top_layout.addWidget(self.start_time)
+        top_layout.addWidget(QLabel('終了', self))
         self.stop_time = TimeEdit()
-        self.start_time.textChanged.connect(self.on_period_change)
-        self.stop_time.textChanged.connect(self.on_period_change)
         self.stop_time.setText(settings.STOP_TIME)
         self.config_widgets.append(self.stop_time)
-        period_gropu.layout().addWidget(self.stop_time)
+        top_layout.addWidget(self.stop_time)
+        period_group.layout().addLayout(top_layout)
 
-        self.layout.addWidget(period_gropu)
+        self.ignore_weekend = QCheckBox('土日は止めない')
+        self.ignore_weekend.setChecked(True)
+        self.config_widgets.append(self.ignore_weekend)
+        period_group.layout().addWidget(self.ignore_weekend)
+
+        self.layout.addWidget(period_group)
 
     def _init_output(self):
         def on_browse_button_clicked():
@@ -230,11 +230,19 @@ class MainWindow(QMainWindow):
         logger.debug('start_workers')
         self.statusBar().showMessage('Starting workers', MSG_DURATION)
         stop = HMClock.from_str(self.stop_time.text())
-        stop_wait = stop - HMClock.now()
-        self.stop_timer.start(stop_wait.to_msec() -
-                              datetime.datetime.now().second * 1000)
-        logger.info('Scheduling stop in %dh %dm at %s', stop_wait.hour,
-                    stop_wait.minute, stop)
+        clock_delta = stop - HMClock.now()
+        stop_time = datetime.datetime.now() + datetime.timedelta(
+            minutes=clock_delta.to_minute())
+        if self.ignore_weekend.isChecked():
+            while stop_time.weekday() in [5, 6]:
+                logger.info('Skip weekend %s', stop_time)
+                stop_time = stop_time + datetime.timedelta(days=1)
+
+        wait = stop_time - datetime.datetime.now()
+        self.stop_timer.start(wait.total_seconds() * 1000)
+        logger.info('Scheduling stop in %dh %dm at %s',
+                    wait.days * 24 + (wait.seconds // 3600),
+                    (wait.seconds % 3600) // 60, stop_time)
         self.event.set()
 
     def set_start_timer(self):
@@ -319,9 +327,6 @@ class MainWindow(QMainWindow):
         self.statusBar().setStyleSheet(
             'color: black;background-color: #FFF8DC;')
         self.statusBar().showMessage('App started.', MSG_DURATION)
-        self.statusBar().addPermanentWidget(VLine())
-        self.period_label = QLabel()
-        self.statusBar().addPermanentWidget(self.period_label)
         self.statusBar().addPermanentWidget(VLine())
         self.statusBar().addPermanentWidget(ClockLabel(self))
 

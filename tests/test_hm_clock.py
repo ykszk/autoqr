@@ -1,4 +1,5 @@
 import unittest
+import datetime
 from hm_clock import HMClock
 
 
@@ -72,3 +73,44 @@ class TestHMClock(unittest.TestCase):
             s, b, e = HMClock.from_str(start), HMClock.from_str(
                 between), HMClock.from_str(end)
             self.assertFalse(b.is_between(s, e))
+
+    def test_skip_implementation(self):
+        # work at night
+        def test_work_night(now):
+            stop = HMClock(6, 0)
+            clock_delta = stop - HMClock(now.hour, now.minute)
+
+            stop_time = now + datetime.timedelta(hours=clock_delta.hour,
+                                                 minutes=clock_delta.minute)
+            while stop_time.weekday() in [5, 6]:  # Sat or Sun
+                stop_time += datetime.timedelta(days=1)
+
+            self.assertFalse(stop_time.weekday() in [5, 6])
+            return stop_time
+
+        # work during the day
+        def test_work_day(now):
+            stop = HMClock(18, 0)
+            clock_delta = stop - HMClock(now.hour, now.minute)
+
+            stop_time = now + datetime.timedelta(hours=clock_delta.hour,
+                                                 minutes=clock_delta.minute)
+            while stop_time.weekday() in [5, 6]:  # Sat or Sun
+                stop_time += datetime.timedelta(days=1)
+
+            self.assertFalse(stop_time.weekday() in [5, 6])
+            return stop_time
+
+        # skip on weekends
+        now = datetime.datetime(2020, 10, 17, 20, 15)  # Saturday 20:15
+        stop_time = test_work_night(now)
+        self.assertGreaterEqual(stop_time - now, datetime.timedelta(days=1))
+        stop_time = test_work_day(now)
+        self.assertGreaterEqual(stop_time - now, datetime.timedelta(days=1))
+
+        # no skip on weekdays
+        now = datetime.datetime(2020, 10, 14, 20, 15)  # Wednesday 20:15
+        stop_time = test_work_night(now)
+        self.assertLessEqual(stop_time - now, datetime.timedelta(days=1))
+        stop_time = test_work_day(now)
+        self.assertLessEqual(stop_time - now, datetime.timedelta(days=1))
