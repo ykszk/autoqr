@@ -218,6 +218,7 @@ def qr_anonymize_save(PatientID: str,
     list_suid = [dcm.SeriesInstanceUID for dcm in all_datasets]
     dcm = all_datasets[0]
     new_pid = hash_utils.hash_id(dcm.PatientID)
+    new_study_uid = anonymize.anonymize_study_uid(dcm)
 
     ds = Dataset()
     ds.PatientID = dcm.PatientID
@@ -254,7 +255,8 @@ def qr_anonymize_save(PatientID: str,
 
     t = threading.Thread(target=target)
     t.start()
-    return new_pid, hash_utils.hash_id(AccessionNumber)
+    return new_pid, hash_utils.hash_id(
+        AccessionNumber), new_study_uid, dcm.StudyDate
 
 
 def is_original_image(ds: Dataset):

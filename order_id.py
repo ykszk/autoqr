@@ -8,6 +8,7 @@ import logging
 from queue import Queue
 from threading import Thread, Event, Lock
 from pathlib import Path
+from typing import Tuple
 import logzero
 from logzero import logger
 import pandas as pd
@@ -27,24 +28,23 @@ MSG_DURATION = 2000
 logger.setLevel(logging.DEBUG)
 
 
-def job(PatientID: str, AccessionNumber: str, outdir: str, return_handler,
-        error_handler):
+def job(args: Tuple[str, str, str], return_handler, error_handler):
     start = datetime.datetime.now()
+    PatientID, AccessionNumber, outdir = args
     logger.info('start retrieve and anonymize %s %s', PatientID,
                 AccessionNumber)
     try:
-        new_pid, new_an = qr.qr_anonymize_save(PatientID,
-                                               AccessionNumber,
-                                               outdir,
-                                               predicate=qr.is_original_image,
-                                               logger=logger)
+        ret = qr.qr_anonymize_save(PatientID,
+                                   AccessionNumber,
+                                   outdir,
+                                   predicate=qr.is_original_image,
+                                   logger=logger)
     except Exception as e:
         logger.error('%s', e)
-        error_handler(PatientID, AccessionNumber, e)
+        error_handler(args, e)
         return
-    return_handler(PatientID, new_pid, AccessionNumber, new_an,
-                   datetime.datetime.now() - start)
-    logger.info('end retrieve and anonymize %s %s', PatientID, AccessionNumber)
+    return_handler(args, ret, datetime.datetime.now() - start)
+    logger.info('end retrieve %s %s', PatientID, AccessionNumber)
 
 
 def worker(f, q: Queue, e: Event):
@@ -134,11 +134,22 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(output_group)
 
-    def _handle_result(self, original_pid, new_pid, original_an, new_an,
-                       t_delta):
+    def _handle_result(self, args: Tuple[str, str], ret: Tuple[str, str, str,
+                                                               str], t_delta):
+        original_pid, original_an, _ = args
+        new_pid, new_an, study_uid, study_date = ret
         with open(self.table_filename, 'a') as f:
-            f.write('{},{},{},{}\n'.format(original_pid, new_pid, original_an,
-                                           new_an))
+            f.write(','.join([
+                str(e) for e in [
+                    study_date,
+                    original_pid,
+                    new_pid,
+                    original_an,
+                    new_an,
+                    study_uid,
+                ]
+            ]))
+            f.write('\n')
         self.done_count += 1
         self.t_deltas.append(t_delta)
         mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
@@ -154,7 +165,8 @@ class MainWindow(QMainWindow):
             for w in self.config_widgets:
                 w.setEnabled(True)
 
-    def _handle_error(self, PatientID, AccessionNumber, e):
+    def _handle_error(self, args: Tuple[str, str], e):
+        PatientID, AccessionNumber = args
         with open(self.error_filename, 'a') as f:
             f.write('{} {} {}\n'.format(PatientID, AccessionNumber, e))
         self.done_count += 1
@@ -191,11 +203,9 @@ class MainWindow(QMainWindow):
                 self.task_queue.queue.clear()
                 for pid, oid in zip(self.df[settings.COL_PATIENT_ID],
                                     self.df[settings.COL_ACCESSION_NUMBER]):
-                    self.task_queue.put([
-                        pid, oid,
-                        self.output_edit.text(), self._handle_result,
-                        self._handle_error
-                    ])
+                    self.task_queue.put([(pid, oid, self.output_edit.text()),
+                                         self._handle_result,
+                                         self._handle_error])
                 self.update_button_state()
             except Exception as e:
                 logger.error(e)
@@ -283,7 +293,7 @@ class MainWindow(QMainWindow):
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv')
             with open(self.table_filename, 'w') as f:
                 f.write(
-                    'OriginalPatientID,AnonymizedPatientID,OriginalAccessionNumber,AnonymizedAccessionNumber\n'
+                    'StudyDate,OriginalPatientID,AnonymizedPatientID,OriginalAccessionNumber,AnonymizedAccessionNumber,AnonymizedStudyInstanceUID\n'
                 )
             self.error_filename = output_dir / (
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
