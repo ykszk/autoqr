@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess, tempfile
 import logging
+import threading
 from pydicom.dataset import Dataset
 from pynetdicom import AE, evt, build_role
 from pynetdicom.sop_class import PatientRootQueryRetrieveInformationModelFind
@@ -209,6 +210,7 @@ def qr_anonymize_save(PatientID: str,
 
         zip_root = Path(outdir)
 
+        threads = []
         for datasets in all_datasets:
             dcm = datasets  #datasets[0]
             ret_dir = tmp_dir / dcm.SeriesInstanceUID
@@ -223,11 +225,16 @@ def qr_anonymize_save(PatientID: str,
             zip_filename = anonymize.get_available_filename(
                 str(zipdir / new_series_uid), '.zip')
 
-            anonymize.anonymize_dcm_dir(ret_dir, str(zip_filename))
+            t = threading.Thread(target=anonymize.anonymize_dcm_dir,
+                                 args=(ret_dir, str(zip_filename)))
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
         return new_pid, hash_utils.hash_id(AccessionNumber)
 
 
-def is_original(ds: Dataset):
+def is_original_image(ds: Dataset):
     try:
         if ds.ImageType[0] == 'ORIGINAL':
             return True
