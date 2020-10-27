@@ -1,9 +1,9 @@
 from pathlib import Path
-import subprocess, tempfile
+import subprocess
+import tempfile
 import logging
 import threading
 import shutil
-import socket
 import pydicom
 from pydicom.dataset import Dataset
 from pynetdicom import AE, evt, build_role
@@ -24,30 +24,16 @@ default_logger.setLevel(logging.DEBUG)
 logging.getLogger('pynetdicom').setLevel(logging.WARNING)
 
 
-def associate():
-    ae = AE(ae_title=settings.AET)
-    ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
-    assoc = ae.associate(settings.DICOM_SERVER,
-                         settings.PORT,
-                         ae_title=settings.AEC)
-    if not assoc.is_established:
-        raise RuntimeError('Association rejected, aborted or never connected')
-    return assoc
-
-
-def query(ds: Dataset, logger=None, ae=None):
+def query(ds: Dataset, logger=None):
     '''
     Args:
         ae: AE with an association
     '''
     logger = logger or default_logger
     logger.debug('start query')
-    if ae is None:
-        ae = AE(ae_title=settings.AETS[0])
-        ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
-        ae.associate(settings.DICOM_SERVER,
-                     settings.PORT,
-                     ae_title=settings.AEC)
+    ae = AE(ae_title=settings.AETS[0])
+    ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
+    ae.associate(settings.DICOM_SERVER, settings.PORT, ae_title=settings.AEC)
     assoc = ae.active_associations[0]
     if not assoc.is_established:
         raise RuntimeError('Association rejected, aborted or never connected')
@@ -113,18 +99,6 @@ def retrieve(ds, logger=None):
     return stored_datasets
 
 
-def is_port_available(port: int):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.bind(('0.0.0.0', port))
-        sock.close()
-        return True
-    except Exception:
-        pass
-    sock.close()
-    return False
-
-
 def retrieve_dcmtk(ds, outdir, aet, receive_port, logger=None):
     '''
     Retrieve using dcmtk.
@@ -182,7 +156,12 @@ def qr(ds: Dataset, predicate=None, logger=None):
     return all_datasets
 
 
-def qr_dcmtk(ds: Dataset, outdir, predicate=None, logger=None):
+def qr_dcmtk(ds: Dataset,
+             outdir,
+             aet,
+             receive_port,
+             predicate=None,
+             logger=None):
     logger = logger or default_logger
     found_datasets = query(ds, logger)
     if predicate is not None:
@@ -197,7 +176,7 @@ def qr_dcmtk(ds: Dataset, outdir, predicate=None, logger=None):
         ds.SeriesInstanceUID = found_ds.SeriesInstanceUID
         series_dir = outdir / found_ds.SeriesInstanceUID
         series_dir.mkdir(parents=True, exist_ok=True)
-        retrieve_dcmtk(ds, series_dir, logger)
+        retrieve_dcmtk(ds, series_dir, aet, receive_port, logger=logger)
 
     return found_datasets
 
@@ -221,7 +200,6 @@ def qr_anonymize_save(PatientID: str,
     ds.SeriesInstanceUID = ''
     ds.QueryRetrieveLevel = 'SERIES'
     ds.Modality = ''
-    # ds.AccessionNumber = AccessionNumber
     ds.StudyInstanceUID = StudyInstanceUID
     ds.SeriesDescription = ''
     ds.ImageType = ''
