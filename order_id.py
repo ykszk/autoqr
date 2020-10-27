@@ -21,6 +21,7 @@ from PyQt5.QtCore import Qt, QTimer
 from widgets import VLine, ClockLabel, TimeEdit
 from hm_clock import HMClock
 import qr
+import utils
 from config import settings
 
 MSG_DURATION = 2000
@@ -66,7 +67,6 @@ class MainWindow(QMainWindow):
         self.stop_timer.setSingleShot(True)
         self.stop_timer.timeout.connect(self.stop_workers_w_start_timer)
         self.task_queue = Queue()
-        self.table_filename = 'table.csv'
         self.error_filename = 'errors.txt'
         self.done_count = 0
         self.t_deltas = []
@@ -138,18 +138,17 @@ class MainWindow(QMainWindow):
                        ret: Tuple[str, str, str, str], t_delta):
         original_pid, original_an, _ = args
         new_pid, new_an, study_uid, study_date = ret
-        with open(self.table_filename, 'a') as f:
-            f.write(','.join([
-                str(e) for e in [
-                    study_date,
-                    original_pid,
-                    new_pid,
-                    original_an,
-                    new_an,
-                    study_uid,
-                ]
-            ]))
-            f.write('\n')
+        newline = ','.join([
+            str(e) for e in [
+                study_date,
+                original_pid,
+                new_pid,
+                original_an,
+                new_an,
+                study_uid,
+            ]
+        ])
+        self.anon_table.add_line(newline)
         self.done_count += 1
         self.t_deltas.append(t_delta)
         mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
@@ -168,7 +167,7 @@ class MainWindow(QMainWindow):
     def _handle_error(self, args: Tuple[str, str, str], e):
         PatientID, AccessionNumber, _ = args
         with open(self.error_filename, 'a') as f:
-            f.write('{} {} {}\n'.format(PatientID, AccessionNumber, e))
+            f.write('{},{},{}\n'.format(PatientID, AccessionNumber, e))
         self.done_count += 1
 
     def _init_input(self):
@@ -180,7 +179,10 @@ class MainWindow(QMainWindow):
 
             logger.info('Open input:%s', fileName)
             try:
-                self.df = pd.read_csv(fileName, encoding='cp932', dtype=str)
+                self.df = pd.read_csv(fileName,
+                                      encoding='cp932',
+                                      dtype=str,
+                                      na_filter=None)
                 required_cols = [
                     settings.COL_ACCESSION_NUMBER, settings.COL_PATIENT_ID,
                     settings.COL_STUDY_DATE
@@ -289,15 +291,15 @@ class MainWindow(QMainWindow):
 
             output_dir = Path(self.output_edit.text())
             output_dir.mkdir(parents=True, exist_ok=True)
-            self.table_filename = output_dir / (
-                datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv')
             header = [
                 'StudyDate', 'OriginalPatientID', 'AnonymizedPatientID',
                 'OriginalAccessionNumber', 'AnonymizedAccessionNumber',
                 'AnonymizedStudyInstanceUID'
             ]
-            with open(self.table_filename, 'w') as f:
-                f.write(','.join(header) + '\n')
+            self.anon_table = utils.CsvWriter(
+                output_dir /
+                (datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv'),
+                ','.join(header))
             self.error_filename = output_dir / (
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
                 '_errors.txt')
