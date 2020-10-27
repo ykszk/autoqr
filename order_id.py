@@ -178,8 +178,8 @@ class MainWindow(QMainWindow):
             if fileName == '':
                 return
 
+            logger.info('Open input:%s', fileName)
             try:
-                logger.info('Open input:%s', fileName)
                 self.df = pd.read_csv(fileName, encoding='cp932', dtype=str)
                 required_cols = [
                     settings.COL_ACCESSION_NUMBER, settings.COL_PATIENT_ID,
@@ -188,32 +188,32 @@ class MainWindow(QMainWindow):
                 for c in required_cols:
                     if c not in self.df.columns:
                         raise Exception('{}がありません。'.format(c))
-                self.df['datetime'] = self.df[settings.COL_STUDY_DATE].map(
-                    lambda d: datetime.datetime.strptime(
-                        d, settings.DATETIME_FORMAT))
-                min_date, max_date = min(self.df['datetime']), max(
-                    self.df['datetime'])
-                self.input_label.setText('ファイル名：{}、総数：{}\n期間：{} ~ {}'.format(
-                    Path(fileName).name, len(self.df),
-                    min_date.date().strftime('%Y/%m/%d'),
-                    max_date.date().strftime('%Y/%m/%d')))
-
-                self.done_count = 0
-                self.t_deltas = []
-                self.task_queue.queue.clear()
-                for pid, oid in zip(self.df[settings.COL_PATIENT_ID],
-                                    self.df[settings.COL_ACCESSION_NUMBER]):
-                    self.task_queue.put([(pid, oid, self.output_edit.text()),
-                                         self._handle_result,
-                                         self._handle_error])
-                self.update_button_state()
             except Exception as e:
                 logger.error(e)
                 dialog = QErrorMessage(self)
                 dialog.setWindowTitle('読み込みエラー')
                 dialog.showMessage('無効なファイルです。{}'.format(str(e)))
-
+            logger.info('Done opening input:%s', fileName)
             self.statusBar().showMessage('リストの読み込み完了')
+            self.df['datetime'] = self.df[settings.COL_STUDY_DATE].map(
+                lambda d: datetime.datetime.strptime(d, settings.
+                                                     DATETIME_FORMAT))
+            min_date, max_date = min(self.df['datetime']), max(
+                self.df['datetime'])
+            self.input_label.setText('ファイル名：{}、総数：{}\n期間：{} ~ {}'.format(
+                Path(fileName).name, len(self.df),
+                min_date.date().strftime('%Y/%m/%d'),
+                max_date.date().strftime('%Y/%m/%d')))
+
+            logger.info('Initialize task queue')
+            self.done_count = 0
+            self.t_deltas = []
+            self.task_queue.queue.clear()
+            for pid, oid in zip(self.df[settings.COL_PATIENT_ID],
+                                self.df[settings.COL_ACCESSION_NUMBER]):
+                self.task_queue.put([(pid, oid, self.output_edit.text()),
+                                     self._handle_result, self._handle_error])
+            self.update_button_state()
 
         input_group = QGroupBox('患者リスト')
         input_group.setLayout(QVBoxLayout())
@@ -291,10 +291,13 @@ class MainWindow(QMainWindow):
             output_dir.mkdir(parents=True, exist_ok=True)
             self.table_filename = output_dir / (
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv')
+            header = [
+                'StudyDate', 'OriginalPatientID', 'AnonymizedPatientID',
+                'OriginalAccessionNumber', 'AnonymizedAccessionNumber',
+                'AnonymizedStudyInstanceUID'
+            ]
             with open(self.table_filename, 'w') as f:
-                f.write(
-                    'StudyDate,OriginalPatientID,AnonymizedPatientID,OriginalAccessionNumber,AnonymizedAccessionNumber,AnonymizedStudyInstanceUID\n'
-                )
+                f.write(','.join(header) + '\n')
             self.error_filename = output_dir / (
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
                 '_errors.txt')
