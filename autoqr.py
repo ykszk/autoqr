@@ -29,23 +29,24 @@ MSG_DURATION = 2000
 logger.setLevel(logging.DEBUG)
 
 
-def job(args: Tuple[str, str, str], return_handler, error_handler):
+def job(args: Tuple[str, str, str, str], return_handler, error_handler):
     start = datetime.datetime.now()
-    PatientID, AccessionNumber, outdir = args
+    PatientID, AccessionNumber, StudyInstanceUID, outdir = args
     logger.info('start retrieve and anonymize %s %s', PatientID,
-                AccessionNumber)
+                StudyInstanceUID)
     try:
         ret = qr.qr_anonymize_save(PatientID,
                                    AccessionNumber,
+                                   StudyInstanceUID,
                                    outdir,
                                    predicate=qr.is_original_image,
                                    logger=logger)
     except Exception as e:
-        logger.error('(%s,%s):%s', PatientID, AccessionNumber, e)
+        logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
         error_handler(args, e)
         return
     return_handler(args, ret, datetime.datetime.now() - start)
-    logger.info('end retrieve %s %s', PatientID, AccessionNumber)
+    logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
 
 
 def worker(f, q: Queue, e: Event):
@@ -134,9 +135,9 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(output_group)
 
-    def _handle_result(self, args: Tuple[str, str, str],
+    def _handle_result(self, args: Tuple[str, str, str, str],
                        ret: Tuple[str, str, str, str], t_delta):
-        original_pid, original_an, _ = args
+        original_pid, original_an, original_suid, _ = args
         new_pid, new_an, study_uid, study_date = ret
         newline = ','.join([
             str(e) for e in [
@@ -145,6 +146,7 @@ class MainWindow(QMainWindow):
                 new_pid,
                 original_an,
                 new_an,
+                original_suid,
                 study_uid,
             ]
         ])
@@ -164,10 +166,10 @@ class MainWindow(QMainWindow):
             for w in self.config_widgets:
                 w.setEnabled(True)
 
-    def _handle_error(self, args: Tuple[str, str, str], e):
-        PatientID, AccessionNumber, _ = args
+    def _handle_error(self, args: Tuple[str, str, str, str], e):
+        PatientID, AccessionNumber, StudyInstanceUID, _ = args
         with open(self.error_filename, 'a') as f:
-            f.write('{},{},{}\n'.format(PatientID, AccessionNumber, e))
+            f.write('{},{},{}\n'.format(PatientID, StudyInstanceUID, e))
         self.done_count += 1
 
     def _init_input(self):
@@ -196,6 +198,7 @@ class MainWindow(QMainWindow):
                 dialog = QErrorMessage(self)
                 dialog.setWindowTitle('読み込みエラー')
                 dialog.showMessage('無効なファイルです。{}'.format(str(e)))
+                return
             logger.info('Done opening input:%s', fileName)
             self.statusBar().showMessage('リストの読み込み完了')
             self.df['datetime'] = self.df[settings.COL_STUDY_DATE].map(
@@ -212,9 +215,11 @@ class MainWindow(QMainWindow):
             self.done_count = 0
             self.t_deltas = []
             self.task_queue.queue.clear()
-            for pid, oid in zip(self.df[settings.COL_PATIENT_ID],
-                                self.df[settings.COL_ACCESSION_NUMBER]):
-                self.task_queue.put([(pid, oid, self.output_edit.text()),
+            for pid, oid, suid in zip(
+                    self.df[settings.COL_PATIENT_ID],
+                    self.df[settings.COL_ACCESSION_NUMBER],
+                    self.df[settings.COL_STUDY_INSTANCE_UID]):
+                self.task_queue.put([(pid, oid, suid, self.output_edit.text()),
                                      self._handle_result, self._handle_error])
             self.update_button_state()
 
@@ -295,7 +300,7 @@ class MainWindow(QMainWindow):
             header = [
                 'StudyDate', 'OriginalPatientID', 'AnonymizedPatientID',
                 'OriginalAccessionNumber', 'AnonymizedAccessionNumber',
-                'AnonymizedStudyInstanceUID'
+                'OriginalStudyInstanceUID', 'AnonymizedStudyInstanceUID'
             ]
             self.anon_table = utils.CsvWriter(
                 output_dir /

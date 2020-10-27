@@ -113,6 +113,10 @@ def retrieve(ds, logger=None):
 
 
 def retrieve_dcmtk(ds, outdir, logger=None):
+    '''
+    Retrieve using dcmtk.
+    dcmtk is used because retrieving with pynetdicom is slow on a laptop for some reason.
+    '''
     logger = logger or default_logger
     series_uid = ds.SeriesInstanceUID
     if not isinstance(series_uid, str):
@@ -187,6 +191,7 @@ def qr_dcmtk(ds: Dataset, outdir, predicate=None, logger=None):
 
 def qr_anonymize_save(PatientID: str,
                       AccessionNumber: str,
+                      StudyInstanceUID: str,
                       outdir: str,
                       predicate=None,
                       logger=None):
@@ -201,7 +206,8 @@ def qr_anonymize_save(PatientID: str,
     ds.SeriesInstanceUID = ''
     ds.QueryRetrieveLevel = 'SERIES'
     ds.Modality = ''
-    ds.AccessionNumber = AccessionNumber
+    # ds.AccessionNumber = AccessionNumber
+    ds.StudyInstanceUID = StudyInstanceUID
     ds.SeriesDescription = ''
     ds.ImageType = ''
 
@@ -227,7 +233,7 @@ def qr_anonymize_save(PatientID: str,
     retrieve_dcmtk(ds, temp, logger)
 
     def target():
-        logger.info('Start anonymize %s', AccessionNumber)
+        logger.info('Start anonymize %s', StudyInstanceUID)
         for dcm in all_datasets:
             series_dir = tmp_dir / dcm.SeriesInstanceUID
             series_dir.mkdir(parents=True, exist_ok=True)
@@ -237,7 +243,8 @@ def qr_anonymize_save(PatientID: str,
             dcm = pydicom.dcmread(str(dcm_fn),
                                   specific_tags=['SeriesInstanceUID'],
                                   stop_before_pixels=True)
-            shutil.move(dcm_fn, tmp_dir / dcm.SeriesInstanceUID / dcm_fn.name)
+            shutil.move(str(dcm_fn),
+                        tmp_dir / dcm.SeriesInstanceUID / dcm_fn.name)
         for dcm in all_datasets:
             year, date = dcm.StudyDate[:4], dcm.StudyDate[4:]
             new_pid = hash_utils.hash_id(dcm.PatientID)
@@ -251,12 +258,13 @@ def qr_anonymize_save(PatientID: str,
             anonymize.anonymize_dcm_dir(tmp_dir / dcm.SeriesInstanceUID,
                                         str(zip_filename))
         shutil.rmtree(temp)
-        logger.info('End anonymize %s', AccessionNumber)
+        logger.info('End anonymize %s', StudyInstanceUID)
 
     t = threading.Thread(target=target)
     t.start()
-    return new_pid, hash_utils.hash_id(
-        AccessionNumber), new_study_uid, dcm.StudyDate
+    new_an = hash_utils.hash_id(
+        AccessionNumber) if AccessionNumber != '' else ''
+    return new_pid, new_an, new_study_uid, dcm.StudyDate
 
 
 def is_original_image(ds: Dataset):
