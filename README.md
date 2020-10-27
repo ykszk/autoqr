@@ -4,6 +4,9 @@
 - Sequentially execute Q/R
 - Scheduled execution (e.g. execute Q/R only during night-time)
 
+## Requirements
+`movescu` from [dcmtk](https://dicom.offis.de/dcmtk.php.en)
+
 ## Run
 ```sh
 python autoqr.py
@@ -30,3 +33,6 @@ pre-commit install
 ``` sh
 python -m pytest --cov tests
 ```
+
+### Test on GitHub Actions
+Include `[runtest]` keyword in the commit message.
