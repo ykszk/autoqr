@@ -1,5 +1,6 @@
 from pathlib import Path
 import toml
+from logzero import logger as default_logger
 
 
 class Defaults():
@@ -40,9 +41,11 @@ class Defaults():
         for key in config.keys():
             if key in vs:
                 if logger:
-                    logger.info('Reset {} with {}'.format(key, config[key]))
+                    logger.info('Reset %s = %s', key, config[key])
                 setattr(settings, key, config[key])
+            elif logger:
+                logger.warning('%s is invalid config key', key)
 
 
 settings = Defaults()
-settings.load(Path(__file__).parent / 'config.toml')
+settings.load(Path(__file__).parent / 'config.toml', default_logger)
