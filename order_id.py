@@ -40,7 +40,7 @@ def job(args: Tuple[str, str, str], return_handler, error_handler):
                                    predicate=qr.is_original_image,
                                    logger=logger)
     except Exception as e:
-        logger.error('%s', e)
+        logger.error('(%s,%s):%s', PatientID, AccessionNumber, e)
         error_handler(args, e)
         return
     return_handler(args, ret, datetime.datetime.now() - start)
@@ -58,7 +58,7 @@ def worker(f, q: Queue, e: Event):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.df = None
+        self.df = pd.DataFrame()
         self.start_timer = QTimer(self)
         self.start_timer.setSingleShot(True)
         self.start_timer.timeout.connect(self.start_workers)
@@ -105,7 +105,7 @@ class MainWindow(QMainWindow):
         period_group.layout().addLayout(top_layout)
 
         self.ignore_weekend = QCheckBox('土日は止めない')
-        self.ignore_weekend.setChecked(True)
+        self.ignore_weekend.setChecked(False)
         self.config_widgets.append(self.ignore_weekend)
         period_group.layout().addWidget(self.ignore_weekend)
 
@@ -134,8 +134,8 @@ class MainWindow(QMainWindow):
 
         self.layout.addWidget(output_group)
 
-    def _handle_result(self, args: Tuple[str, str], ret: Tuple[str, str, str,
-                                                               str], t_delta):
+    def _handle_result(self, args: Tuple[str, str, str],
+                       ret: Tuple[str, str, str, str], t_delta):
         original_pid, original_an, _ = args
         new_pid, new_an, study_uid, study_date = ret
         with open(self.table_filename, 'a') as f:
@@ -165,8 +165,8 @@ class MainWindow(QMainWindow):
             for w in self.config_widgets:
                 w.setEnabled(True)
 
-    def _handle_error(self, args: Tuple[str, str], e):
-        PatientID, AccessionNumber = args
+    def _handle_error(self, args: Tuple[str, str, str], e):
+        PatientID, AccessionNumber, _ = args
         with open(self.error_filename, 'a') as f:
             f.write('{} {} {}\n'.format(PatientID, AccessionNumber, e))
         self.done_count += 1
