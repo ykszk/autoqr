@@ -3,6 +3,7 @@ import subprocess, tempfile
 import logging
 import threading
 import shutil
+import socket
 import pydicom
 from pydicom.dataset import Dataset
 from pynetdicom import AE, evt, build_role
@@ -42,7 +43,7 @@ def query(ds: Dataset, logger=None, ae=None):
     logger = logger or default_logger
     logger.debug('start query')
     if ae is None:
-        ae = AE(ae_title=settings.AET)
+        ae = AE(ae_title=settings.AETS[0])
         ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
         ae.associate(settings.DICOM_SERVER,
                      settings.PORT,
@@ -83,7 +84,7 @@ def retrieve(ds, logger=None):
 
     handlers = [(evt.EVT_C_STORE, handle_store)]
 
-    ae = AE(ae_title=settings.AET)
+    ae = AE(ae_title=settings.AETS[0])
 
     ae.add_requested_context(PatientRootQueryRetrieveInformationModelGet)
     ae.add_requested_context(CTImageStorage)
@@ -112,7 +113,19 @@ def retrieve(ds, logger=None):
     return stored_datasets
 
 
-def retrieve_dcmtk(ds, outdir, logger=None):
+def is_port_available(port: int):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(('0.0.0.0', port))
+        sock.close()
+        return True
+    except Exception:
+        pass
+    sock.close()
+    return False
+
+
+def retrieve_dcmtk(ds, outdir, aet, receive_port, logger=None):
     '''
     Retrieve using dcmtk.
     dcmtk is used because retrieving with pynetdicom is slow on a laptop for some reason.
@@ -125,7 +138,7 @@ def retrieve_dcmtk(ds, outdir, logger=None):
 
     base_arg = '{} {} {} -aet {} -aec {}'.format(
         Path(settings.DCMTK_BINDIR) / 'movescu', settings.DICOM_SERVER,
-        settings.PORT, settings.AET, settings.AEC)
+        settings.PORT, aet, settings.AEC)
     level_arg = '-k 0008,0052=SERIES'
     pid_arg = '-k 0010,0020={}'.format(ds.PatientID)
     study_arg = '-k 0020,000D={}'.format(ds.StudyInstanceUID)
@@ -134,7 +147,7 @@ def retrieve_dcmtk(ds, outdir, logger=None):
 
     args = sum([
         base_arg.split(),
-        '+P {}'.format(settings.RECEIVE_PORT).split(),
+        '+P {}'.format(receive_port).split(),
         level_arg.split(),
         pid_arg.split(),
         study_arg.split(),
@@ -193,6 +206,8 @@ def qr_anonymize_save(PatientID: str,
                       AccessionNumber: str,
                       StudyInstanceUID: str,
                       outdir: str,
+                      aet: str,
+                      receive_port: int,
                       predicate=None,
                       logger=None):
     '''
@@ -230,7 +245,7 @@ def qr_anonymize_save(PatientID: str,
     ds.PatientID = dcm.PatientID
     ds.StudyInstanceUID = dcm.StudyInstanceUID
     ds.SeriesInstanceUID = '\\'.join(list_suid)
-    retrieve_dcmtk(ds, temp, logger)
+    retrieve_dcmtk(ds, temp, aet, receive_port, logger)
 
     def target():
         logger.info('Start anonymize %s', StudyInstanceUID)

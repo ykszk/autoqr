@@ -6,7 +6,8 @@ import subprocess
 import argparse
 import logging
 from queue import Queue
-from threading import Thread, Event, Lock
+import threading
+from threading import Thread, Event
 from pathlib import Path
 from typing import Tuple
 import logzero
@@ -25,11 +26,12 @@ import utils
 from config import settings
 
 MSG_DURATION = 2000
-
+locker = utils.Locker()
 logger.setLevel(logging.DEBUG)
 
 
-def job(args: Tuple[str, str, str, str], return_handler, error_handler):
+def job(args: Tuple[str, str, str, str], tid2aet, tid2port, return_handler,
+        error_handler):
     start = datetime.datetime.now()
     PatientID, AccessionNumber, StudyInstanceUID, outdir = args
     logger.info('start retrieve and anonymize %s %s', PatientID,
@@ -39,6 +41,8 @@ def job(args: Tuple[str, str, str, str], return_handler, error_handler):
                                    AccessionNumber,
                                    StudyInstanceUID,
                                    outdir,
+                                   tid2aet[threading.get_ident()],
+                                   tid2port[threading.get_ident()],
                                    predicate=qr.is_original_image,
                                    logger=logger)
     except Exception as e:
@@ -77,10 +81,16 @@ class MainWindow(QMainWindow):
 
         self.event = Event()
         self.event.clear()
-        self.thread = Thread(target=worker,
-                             args=(job, self.task_queue, self.event))
-        self.thread.setDaemon(True)
-        self.thread.start()
+        self.threads = []
+        self.tid2aet = {}
+        self.tid2port = {}
+        for i in range(settings.N_THREADS):
+            t = Thread(target=worker, args=(job, self.task_queue, self.event))
+            t.setDaemon(True)
+            self.threads.append(t)
+            t.start()
+            self.tid2port[t.ident] = settings.RECEIVE_PORTS[i]
+            self.tid2aet[t.ident] = settings.AETS[i]
 
     def is_in_time(self):
         start = HMClock.from_str(self.start_time.text())
@@ -150,27 +160,31 @@ class MainWindow(QMainWindow):
                 study_uid,
             ]
         ])
-        self.anon_table.add_line(newline)
-        self.done_count += 1
-        self.t_deltas.append(t_delta)
-        mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
-            self.t_deltas)
-        rate = 1 / (mean_t_deltas.total_seconds() / 3600)
-        self.log_label.setText('{} 完了. {:g} / h'.format(self.done_count, rate))
-        if self.done_count == len(self.df):
-            logger.info('all jobs are finished')
-            self.statusBar().showMessage('全例終了')
-            self.stop_workers()
-            self.start_button.setEnabled(False)
-            self.stop_button.setEnabled(False)
-            for w in self.config_widgets:
-                w.setEnabled(True)
+        with locker.lock():
+            self.anon_table.add_line(newline)
+            self.done_count += 1
+            self.t_deltas.append(t_delta)
+            mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
+                self.t_deltas)
+            rate = 1 / (mean_t_deltas.total_seconds() /
+                        3600) * settings.N_THREADS
+            self.log_label.setText('{} 完了. {:g} / h'.format(
+                self.done_count, rate))
+            if self.done_count == len(self.df):
+                logger.info('all jobs are finished')
+                self.statusBar().showMessage('全例終了')
+                self.stop_workers()
+                self.start_button.setEnabled(False)
+                self.stop_button.setEnabled(False)
+                for w in self.config_widgets:
+                    w.setEnabled(True)
 
     def _handle_error(self, args: Tuple[str, str, str, str], e):
         PatientID, AccessionNumber, StudyInstanceUID, _ = args
-        with open(self.error_filename, 'a') as f:
-            f.write('{},{},{}\n'.format(PatientID, StudyInstanceUID, e))
-        self.done_count += 1
+        with locker.lock():
+            with open(self.error_filename, 'a') as f:
+                f.write('{},{},{}\n'.format(PatientID, StudyInstanceUID, e))
+            self.done_count += 1
 
     def _init_input(self):
         def on_input_button_clicked():
@@ -220,6 +234,7 @@ class MainWindow(QMainWindow):
                     self.df[settings.COL_ACCESSION_NUMBER],
                     self.df[settings.COL_STUDY_INSTANCE_UID]):
                 self.task_queue.put([(pid, oid, suid, self.output_edit.text()),
+                                     self.tid2aet, self.tid2port,
                                      self._handle_result, self._handle_error])
             self.update_button_state()
 
@@ -414,6 +429,22 @@ def main():
     if args.logfile:
         logzero.logfile(args.logfile, maxBytes=1e7, backupCount=3)
     logger.setLevel(args.loglevel)
+
+    if len(settings.RECEIVE_PORTS) < settings.N_THREADS:
+        print(settings.RECEIVE_PORTS)
+        print('Invalid config. len(RECEIVE_PORTS) < N_THREADS ({} and {})'.
+              format(len(settings.RECEIVE_PORTS), settings.N_THREADS))
+        return 1
+
+    if len(settings.AETS) < settings.N_THREADS:
+        print(settings.AETS)
+        print('Invalid config. len(AETS) < N_THREADS ({} and {})'.format(
+            len(settings.AETS), settings.N_THREADS))
+        return 1
+
+    if len(settings.RECEIVE_PORTS) > settings.N_THREADS:
+        logger.warning('N_THREADS < available ports (%s and %s)',
+                       len(settings.RECEIVE_PORTS), settings.N_THREADS)
 
     logger.info('starting the application')
 
