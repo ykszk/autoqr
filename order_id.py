@@ -184,7 +184,8 @@ class MainWindow(QMainWindow):
                                       dtype=str,
                                       na_filter=None)
                 required_cols = [
-                    settings.COL_ACCESSION_NUMBER, settings.COL_PATIENT_ID,
+                    settings.COL_ACCESSION_NUMBER,
+                    settings.COL_STUDY_INSTANCE_UID, settings.COL_PATIENT_ID,
                     settings.COL_STUDY_DATE
                 ]
                 for c in required_cols:
