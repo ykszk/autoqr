@@ -388,9 +388,11 @@ class MainWindow(QMainWindow):
 
 def main():
     parser = argparse.ArgumentParser(description='Auto Q/R.')
-    parser.add_argument('--logfile',
-                        help="Log to the specified file",
-                        metavar='<filename>')
+    parser.add_argument(
+        '--logfile',
+        help=
+        "Log to the specified file. Specify '-' for no logfile. (Default:logs/%%y%%m%%d_%%H%%M%%S.log)",
+        metavar='<filename>')
 
     parser.add_argument(
         '--loglevel',
@@ -426,8 +428,13 @@ def main():
         app.exec_()
         return 1
 
-    if args.logfile:
-        logzero.logfile(args.logfile, maxBytes=1e7, backupCount=3)
+    if args.logfile and args.logfile != '-':
+        logzero.logfile(args.logfile, maxBytes=1e7, backupCount=256)
+    else:
+        logfile = Path('logs') / '{}.log'.format(
+            datetime.datetime.today().strftime("%y%m%d_%H%M%S"))
+        logfile.parent.mkdir(parents=True, exist_ok=True)
+        logzero.logfile(logfile, maxBytes=1e7, backupCount=256)
     logger.setLevel(args.loglevel)
 
     if len(settings.RECEIVE_PORTS) < settings.N_THREADS:
