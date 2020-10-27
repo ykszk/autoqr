@@ -14,6 +14,23 @@ EXT_TABLE = {
 }
 
 
+def swallow_exceptions(exception_logger=None):
+    '''
+    Decorator
+    '''
+    def decorator(f):
+        def wrapper(*args, **kwargs):
+            try:
+                return f(*args, **kwargs)
+            except Exception as e:
+                if exception_logger is not None:
+                    exception_logger.error(e)
+
+        return wrapper
+
+    return decorator
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Query by study instance UID.')
@@ -58,9 +75,10 @@ def main():
     ds.StudyInstanceUID = args.UID
 
     query_result = qr.query(ds, logger=logger)
-    df = pd.DataFrame([[getattr(r, attr) for attr in attributes]
-                       for r in query_result],
-                      columns=attributes)
+    df = pd.DataFrame(
+        [[swallow_exceptions(logger)(getattr)(r, attr) for attr in attributes]
+         for r in query_result],
+        columns=attributes)
     logger.info('%d query results', len(df))
     if output_filename == '-':
         s = io.StringIO()
