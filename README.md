@@ -6,7 +6,7 @@
 
 ## Run
 ```sh
-python order_id.py
+python autoqr.py
 ```
 
 ## Scripts
