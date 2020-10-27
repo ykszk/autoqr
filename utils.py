@@ -1,3 +1,7 @@
+from threading import Lock
+from contextlib import contextmanager
+
+
 class CsvWriter:
     def __init__(self, filename, header=None, encoding='cp932'):
         '''
@@ -26,3 +30,16 @@ class CsvWriter:
             file.write(line)
             if line != '' and line[-1] != '\n':
                 file.write('\n')
+
+
+class Locker:
+    def __init__(self):
+        self.lock_obj = Lock()
+
+    @contextmanager
+    def lock(self):
+        self.lock_obj.acquire()
+        try:
+            yield
+        finally:
+            self.lock_obj.release()

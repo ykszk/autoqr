@@ -32,3 +32,24 @@ class TestCsvWriter(unittest.TestCase):
             del writer
             df_read = pd.read_csv(filename, encoding='cp932')
         self.assertTrue(df.equals(df_read))
+
+
+class TestLocker(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(TestLocker, self).__init__(*args, **kwargs)
+
+    def test_lock(self):
+        locker = utils.Locker()
+        with locker.lock():
+            self.assertTrue(locker.lock_obj.locked())
+        self.assertFalse(locker.lock_obj.locked())
+
+    def test_lock_exception(self):
+        locker = utils.Locker()
+        try:
+            with locker.lock():
+                self.assertTrue(locker.lock_obj.locked())
+                raise RuntimeError('Test Locker class')
+        except Exception:
+            pass
+        self.assertFalse(locker.lock_obj.locked())
