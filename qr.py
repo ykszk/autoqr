@@ -202,7 +202,7 @@ def qr_anonymize_save(PatientID: str,
     ds.Modality = ''
     ds.StudyInstanceUID = StudyInstanceUID
     ds.SeriesDescription = ''
-    ds.ImageType = ''
+    ds.SeriesNumber = ''
 
     temp = tempfile.mkdtemp()
     tmp_dir = Path(temp)
@@ -261,13 +261,7 @@ def qr_anonymize_save(PatientID: str,
 
 
 def is_original_image(ds: Dataset):
-    try:
-        if ds.ImageType[0] == 'ORIGINAL':
-            return True
-    except Exception:
-        pass
-
-    return False
+    return ds.SeriesNumber < 300
 
 
 def main():
