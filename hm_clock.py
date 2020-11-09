@@ -5,7 +5,7 @@ class HMClock():
     '''
     Over midnight aware clock class
     '''
-    def __init__(self, hour, minute):
+    def __init__(self, hour: int, minute: int):
         self.hour = hour
         self.minute = minute
 
@@ -31,7 +31,10 @@ class HMClock():
         Returns:
             [hour:int, minute:int]
         '''
-        hm = [int(e) for e in s.split(':')]
+        if ':' in s:
+            hm = [int(e) for e in s.split(':')]
+        else:
+            hm = int(s[:-2]), int(s[-2:])
         if hm[0] >= 24 or hm[0] < 0:
             raise ValueError('Invalid hour {}'.format(hm[0]))
         if hm[1] >= 60 or hm[1] < 0:
@@ -93,7 +96,7 @@ class HMClock():
         if not isinstance(other, HMClock):
             return NotImplemented
         self_m = self.to_minute()
-        other_m = self.to_minute()
+        other_m = other.to_minute()
         return self_m < other_m
 
     def __ne__(self, other: 'HMClock'):

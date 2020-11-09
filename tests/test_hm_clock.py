@@ -1,5 +1,7 @@
 import unittest
 import datetime
+import random
+
 from hm_clock import HMClock
 
 
@@ -73,6 +75,24 @@ class TestHMClock(unittest.TestCase):
             s, b, e = HMClock.from_str(start), HMClock.from_str(
                 between), HMClock.from_str(end)
             self.assertFalse(b.is_between(s, e))
+
+    def test_cmps(self):
+        self.assertLess(HMClock(3, 0), HMClock(4, 0))
+        self.assertGreater(HMClock(12, 0), HMClock(4, 0))
+        self.assertEqual(HMClock(23, 0), HMClock(23, 0))
+
+    def test_sort(self):
+        expected = [
+            HMClock.from_str(s)
+            for s in ['06:00', '06:30', '10:00', '15:00', '21:30']
+        ]
+        actual = [
+            HMClock.from_str(s)
+            for s in ['06:00', '06:30', '10:00', '15:00', '21:30']
+        ]
+        random.shuffle(actual)
+        actual.sort()
+        self.assertEqual(expected, actual)
 
     def test_skip_implementation(self):
         # work at night
