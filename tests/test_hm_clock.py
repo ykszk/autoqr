@@ -2,6 +2,8 @@ import unittest
 import datetime
 import random
 
+import freezegun
+
 from hm_clock import HMClock
 
 
@@ -43,6 +45,17 @@ class TestHMClock(unittest.TestCase):
         for args in invalid_args:
             with self.assertRaises(ValueError):
                 HMClock.from_minute(args)
+
+    def test_now(self):
+        with freezegun.freeze_time('2020-1-1 12:00:00'):
+            now = HMClock.now()
+            self.assertEqual(now.hour, 12)
+            self.assertEqual(now.minute, 0)
+
+        with freezegun.freeze_time('2020-1-1 15:45:00'):
+            now = HMClock.now()
+            self.assertEqual(now.hour, 15)
+            self.assertEqual(now.minute, 45)
 
     def test_delta(self):
         pairs = [(('12:00', '6:00'), ('6:00')), (('3:00', '19:00'), ('8:00')),

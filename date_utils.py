@@ -10,7 +10,7 @@ def date2str(date: datetime):
     return date.strftime('%Y%m%d')
 
 
-def split(start: datetime, end: datetime, step: str):
+def split(start: datetime, end: datetime, step: int):
     days = (end - start).days + 1
     part_start, part_end = start, min(start + timedelta(days=step - 1), end)
     for _ in range(math.ceil(days / step)):
@@ -20,6 +20,6 @@ def split(start: datetime, end: datetime, step: str):
         part_end = min(part_end, end)
 
 
-def split_size(start: datetime, end: datetime, step: str):
+def split_size(start: datetime, end: datetime, step: int):
     days = (end - start).days + 1
     return math.ceil(days / step)

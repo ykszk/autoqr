@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import toml
 from logzero import logger as default_logger
@@ -9,8 +10,7 @@ class Defaults():
         self.__PORT = 4242  # DICOM server's port
         self.AEC = 'ANY-SCP'  # DICOM server's AET
         self.AETS = ['AUTOQR']  # Client's application Entity Title
-        self.START_TIME = '1800'
-        self.STOP_TIME = '0700'
+        self.__PERIODS = [['1800', '0700']]
         self.DCMTK_BINDIR = ''
         self.__N_THREADS = 1
         self.__RECEIVE_PORTS = [104]
@@ -37,6 +37,20 @@ class Defaults():
         self.__PORT = int(port_str)
 
     @property
+    def PERIODS(self):
+        return self.__PERIODS
+
+    @PERIODS.setter
+    def PERIODS(self, periods):
+        for p in periods:
+            if len(p) != 2:
+                default_logger.error(
+                    'Invalid PERIODS in the config. Nested periods is expected (e.g. [["1800", "0600"]]): %s',
+                    periods)
+                sys.exit(1)
+        self.__PERIODS = periods
+
+    @property
     def RECEIVE_PORTS(self):
         return self.__RECEIVE_PORTS
 
@@ -58,4 +72,6 @@ class Defaults():
 
 
 settings = Defaults()
-settings.load(Path(__file__).parent / 'config.toml', default_logger)
+config_filename = Path(__file__).parent / 'config.toml'
+if config_filename.exists():
+    settings.load(config_filename, default_logger)

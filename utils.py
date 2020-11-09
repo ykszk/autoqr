@@ -2,6 +2,17 @@ from threading import Lock
 from contextlib import contextmanager
 
 
+def log_call(logger, msg: str):
+    def deco(f):
+        def wrapper(*args, **kwargs):
+            logger.info(msg)
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
 class CsvWriter:
     def __init__(self, filename, header=None, encoding='cp932'):
         '''
