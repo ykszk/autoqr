@@ -29,9 +29,14 @@ pip install -r requirements.txt
 # Pre-commit hooks
 pre-commit install
 ```
-### Test
+### Test all
 ``` sh
 python -m pytest --cov tests
+```
+
+### Test single file
+``` sh
+python -m pytest tests/filename.py
 ```
 
 ### Test on GitHub Actions
