@@ -20,79 +20,146 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 from widgets import VLine, ClockLabel, TimeEdit
-from hm_clock import HMClock
 from scheduled_event import ScheduledEvent
 import qr
 import utils
 from config import settings
 
 MSG_DURATION = 2000
-locker = utils.Locker()
 logger.setLevel(logging.DEBUG)
 
 
-def job(args: Tuple[str, str, str, str], tid2aet, tid2port, return_handler,
-        error_handler):
-    start = datetime.datetime.now()
-    PatientID, AccessionNumber, StudyInstanceUID, outdir = args
-    logger.info('start retrieve and anonymize %s %s', PatientID,
-                StudyInstanceUID)
-    try:
-        ret = qr.qr_anonymize_save(PatientID,
-                                   AccessionNumber,
-                                   StudyInstanceUID,
-                                   outdir,
-                                   tid2aet[threading.get_ident()],
-                                   tid2port[threading.get_ident()],
-                                   predicate=qr.is_original_image,
-                                   logger=logger)
-    except Exception as e:
-        logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
-        error_handler(args, e)
-        return
-    return_handler(args, ret, datetime.datetime.now() - start)
-    logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
-
-
-def worker(f, q: Queue, e: Event):
-    while True:
-        e.wait()
-        args = q.get()
-        f(*args)
-        q.task_done()
-
-
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.df = pd.DataFrame()
-        self.task_queue = Queue()
-        self.error_filename = 'errors.txt'
-        self.done_count = 0
-        self.t_deltas = []
-        self.config_widgets = [
-        ]  # widgets used for configuration. disabled during the execution
-        self._init_widgets()
-
+class AutoQR():
+    def __init__(self, outdir):
         self.sched_event = ScheduledEvent(settings.PERIODS, logger=logger)
+        self.done_count = 0
+        self.rate = 0
+        self.locker = utils.Locker()
+        self.t_deltas = []
+        self.job_done_handlers = []
+        self.outdir = Path(outdir)
+        header = [
+            'StudyDate', 'OriginalPatientID', 'AnonymizedPatientID',
+            'OriginalAccessionNumber', 'AnonymizedAccessionNumber',
+            'OriginalStudyInstanceUID', 'AnonymizedStudyInstanceUID'
+        ]
+        self.anon_table = utils.CsvWriter(
+            self.outdir /
+            (datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv'),
+            ','.join(header))
+        self.error_filename = self.outdir / (
+            datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
+            '_errors.txt')
         self.threads = []
         self.tid2aet = {}
         self.tid2port = {}
+        self.task_queue = Queue()
         for i in range(settings.N_THREADS):
-            t = Thread(target=worker,
-                       args=(job, self.task_queue, self.sched_event.event))
+            t = Thread(target=self._worker,
+                       args=(self._job, self.task_queue,
+                             self.sched_event.event))
             t.setDaemon(True)
             self.threads.append(t)
             t.start()
             self.tid2port[t.ident] = settings.RECEIVE_PORTS[i]
             self.tid2aet[t.ident] = settings.AETS[i]
 
-    def is_in_time(self):
-        start = HMClock.from_str(self.start_time.text())
-        stop = HMClock.from_str(self.stop_time.text())
-        now = HMClock.now()
+    def _worker(self, f, q: Queue, e: Event):
+        while True:
+            e.wait()
+            args = q.get()
+            f(*args)
+            q.task_done()
 
-        return now.is_between(start, stop)
+    def _job(self, args: Tuple[str, str, str], tid2aet, tid2port):
+        start = datetime.datetime.now()
+        PatientID, AccessionNumber, StudyInstanceUID = args
+        logger.info('start retrieve and anonymize %s %s', PatientID,
+                    StudyInstanceUID)
+        try:
+            ret = qr.qr_anonymize_save(PatientID,
+                                       AccessionNumber,
+                                       StudyInstanceUID,
+                                       str(self.outdir),
+                                       tid2aet[threading.get_ident()],
+                                       tid2port[threading.get_ident()],
+                                       predicate=qr.is_original_image,
+                                       logger=logger)
+        except Exception as e:
+            logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
+            self._handle_error(args, e)
+            return
+        self._handle_result(args, ret, datetime.datetime.now() - start)
+        for handler in self.job_done_handlers:
+            handler()
+        logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
+
+    def _handle_result(self, args: Tuple[str, str, str],
+                       ret: Tuple[str, str, str, str], t_delta):
+        original_pid, original_an, original_suid = args
+        new_pid, new_an, study_uid, study_date = ret
+        newline = ','.join([
+            str(e) for e in [
+                study_date,
+                original_pid,
+                new_pid,
+                original_an,
+                new_an,
+                original_suid,
+                study_uid,
+            ]
+        ])
+        with self.locker.lock():
+            self.anon_table.add_line(newline)
+            self.done_count += 1
+            self.t_deltas.append(t_delta)
+            mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
+                self.t_deltas)
+            self.rate = 1 / (mean_t_deltas.total_seconds() /
+                             3600) * settings.N_THREADS
+
+    def _handle_error(self, args: Tuple[str, str, str], e):
+        PatientID, _, StudyInstanceUID = args
+        with self.locker.lock():
+            with open(self.error_filename, 'a') as f:
+                f.write('{},{},{}\n'.format(PatientID, StudyInstanceUID, e))
+            self.done_count += 1
+
+    def add_job_done_handler(self, handler):
+        self.job_done_handlers.append(handler)
+
+    def set_df(self, df):
+        self.df = df
+        logger.info('Initialize task queue. (%d)', len(df))
+        self.done_count = 0
+        self.t_deltas = []
+        self.task_queue.queue.clear()
+        for pid, oid, suid in zip(self.df[settings.COL_PATIENT_ID],
+                                  self.df[settings.COL_ACCESSION_NUMBER],
+                                  self.df[settings.COL_STUDY_INSTANCE_UID]):
+            self.task_queue.put([(pid, oid, suid), self.tid2aet,
+                                 self.tid2port])
+
+
+def open_csv(filename):
+    df = pd.read_csv(filename, encoding='cp932', dtype=str, na_filter=None)
+    required_cols = [
+        settings.COL_ACCESSION_NUMBER, settings.COL_STUDY_INSTANCE_UID,
+        settings.COL_PATIENT_ID, settings.COL_STUDY_DATE
+    ]
+    for c in required_cols:
+        if c not in df.columns:
+            raise Exception('{}がありません。'.format(c))
+    return df
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.locker = utils.Locker()
+        self.config_widgets = [
+        ]  # widgets used for configuration. disabled during the execution
+        self._init_widgets()
 
     def _init_periods(self):
         period_group = QGroupBox('開始・終了時間')
@@ -130,36 +197,14 @@ class MainWindow(QMainWindow):
         output_group.layout().addWidget(self.output_edit)
         self.output_button = QPushButton('選択...')
         self.output_button.clicked.connect(on_browse_button_clicked)
-        # self.config_widgets.append(self.output_button)
         output_group.layout().addWidget(self.output_button)
 
         self.layout.addWidget(output_group)
 
-    def _handle_result(self, args: Tuple[str, str, str, str],
-                       ret: Tuple[str, str, str, str], t_delta):
-        original_pid, original_an, original_suid, _ = args
-        new_pid, new_an, study_uid, study_date = ret
-        newline = ','.join([
-            str(e) for e in [
-                study_date,
-                original_pid,
-                new_pid,
-                original_an,
-                new_an,
-                original_suid,
-                study_uid,
-            ]
-        ])
-        with locker.lock():
-            self.anon_table.add_line(newline)
-            self.done_count += 1
-            self.t_deltas.append(t_delta)
-            mean_t_deltas = sum(self.t_deltas, datetime.timedelta()) / len(
-                self.t_deltas)
-            rate = 1 / (mean_t_deltas.total_seconds() /
-                        3600) * settings.N_THREADS
+    def _on_job_done(self):
+        with self.locker.lock():
             self.log_label.setText('{} 完了. {:g} / h'.format(
-                self.done_count, rate))
+                self.autoqr.done_count, self.autoqr.rate))
             if self.done_count == len(self.df):
                 logger.info('all jobs are finished')
                 self.statusBar().showMessage('全例終了')
@@ -168,13 +213,6 @@ class MainWindow(QMainWindow):
                 self.stop_button.setEnabled(False)
                 for w in self.config_widgets:
                     w.setEnabled(True)
-
-    def _handle_error(self, args: Tuple[str, str, str, str], e):
-        PatientID, AccessionNumber, StudyInstanceUID, _ = args
-        with locker.lock():
-            with open(self.error_filename, 'a') as f:
-                f.write('{},{},{}\n'.format(PatientID, StudyInstanceUID, e))
-            self.done_count += 1
 
     def _init_input(self):
         def on_input_button_clicked():
@@ -185,18 +223,7 @@ class MainWindow(QMainWindow):
 
             logger.info('Open input:%s', fileName)
             try:
-                self.df = pd.read_csv(fileName,
-                                      encoding='cp932',
-                                      dtype=str,
-                                      na_filter=None)
-                required_cols = [
-                    settings.COL_ACCESSION_NUMBER,
-                    settings.COL_STUDY_INSTANCE_UID, settings.COL_PATIENT_ID,
-                    settings.COL_STUDY_DATE
-                ]
-                for c in required_cols:
-                    if c not in self.df.columns:
-                        raise Exception('{}がありません。'.format(c))
+                self.df = open_csv(fileName)
             except Exception as e:
                 logger.error(e)
                 dialog = QErrorMessage(self)
@@ -215,17 +242,9 @@ class MainWindow(QMainWindow):
                 min_date.date().strftime('%Y/%m/%d'),
                 max_date.date().strftime('%Y/%m/%d')))
 
-            logger.info('Initialize task queue')
-            self.done_count = 0
-            self.t_deltas = []
-            self.task_queue.queue.clear()
-            for pid, oid, suid in zip(
-                    self.df[settings.COL_PATIENT_ID],
-                    self.df[settings.COL_ACCESSION_NUMBER],
-                    self.df[settings.COL_STUDY_INSTANCE_UID]):
-                self.task_queue.put([(pid, oid, suid, self.output_edit.text()),
-                                     self.tid2aet, self.tid2port,
-                                     self._handle_result, self._handle_error])
+            self.autoqr = AutoQR(self.output_edit.text())
+            self.autoqr.add_job_done_handler(self._on_job_done)
+            self.autoqr.set_df(self.df)
             self.output_button.setEnabled(False)
             self.update_button_state()
 
@@ -265,20 +284,8 @@ class MainWindow(QMainWindow):
 
             output_dir = Path(self.output_edit.text())
             output_dir.mkdir(parents=True, exist_ok=True)
-            header = [
-                'StudyDate', 'OriginalPatientID', 'AnonymizedPatientID',
-                'OriginalAccessionNumber', 'AnonymizedAccessionNumber',
-                'OriginalStudyInstanceUID', 'AnonymizedStudyInstanceUID'
-            ]
-            self.anon_table = utils.CsvWriter(
-                output_dir /
-                (datetime.datetime.today().strftime("%y%m%d_%H%M%S") + '.csv'),
-                ','.join(header))
-            self.error_filename = output_dir / (
-                datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
-                '_errors.txt')
 
-            self.sched_event.start()
+            self.autoqr.sched_event.start()
 
         def on_stop_button_clicked():
             logger.debug('stop button clicked')
@@ -286,7 +293,7 @@ class MainWindow(QMainWindow):
             self.stop_button.setEnabled(False)
 
             self.statusBar().showMessage('Pausing workers', MSG_DURATION)
-            self.sched_event.stop()
+            self.autoqr.sched_event.stop()
 
         self.stop_button.clicked.connect(on_stop_button_clicked)
         self.start_button.clicked.connect(on_start_button_clicked)
