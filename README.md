@@ -26,6 +26,8 @@ python autoqr.py
 ``` sh
 # Install packages
 pip install -r requirements.txt
+# Packages for development
+pip install freezegun
 # Pre-commit hooks
 pre-commit install
 ```
@@ -38,6 +40,7 @@ python -m pytest --cov tests
 ``` sh
 python -m pytest tests/filename.py
 ```
+Or `ctrl+shift+b` in vscode.
 
 ### Test on GitHub Actions
 Include `[runtest]` keyword in the commit message.
