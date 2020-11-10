@@ -4,6 +4,7 @@ import tempfile
 import logging
 import threading
 import shutil
+from concurrent.futures.thread import ThreadPoolExecutor
 import pydicom
 from pydicom.dataset import Dataset
 from pynetdicom import AE, evt, build_role
@@ -22,6 +23,8 @@ default_logger = setup_logger()
 default_logger.setLevel(logging.DEBUG)
 
 logging.getLogger('pynetdicom').setLevel(logging.WARNING)
+
+thread_pool = ThreadPoolExecutor(max_workers=settings.N_THREADS)
 
 
 def query(ds: Dataset, logger=None):
@@ -253,11 +256,14 @@ def qr_anonymize_save(PatientID: str,
         shutil.rmtree(temp)
         logger.info('End anonymize %s', StudyInstanceUID)
 
-    t = threading.Thread(target=target)
-    t.start()
+    thread_pool.submit(target)
     new_an = hash_utils.hash_id(
         AccessionNumber) if AccessionNumber != '' else ''
     return new_pid, new_an, new_study_uid, dcm.StudyDate
+
+
+def shutdown():
+    thread_pool.shutdown()
 
 
 def is_original_image(ds: Dataset):

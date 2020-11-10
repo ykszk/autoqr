@@ -76,6 +76,8 @@ class AutoQR():
         except Exception as e:
             logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
             self._handle_error(args, e)
+            for handler in self.job_done_handlers:
+                handler()
             return
         self._handle_result(args, ret, datetime.datetime.now() - start)
         logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
@@ -116,6 +118,9 @@ class AutoQR():
     def _on_job_done(self):
         if self.done_count == len(self.df):
             self.sched_event.stop()
+
+    def finalize(self):
+        qr.shutdown()
 
     def add_job_done_handler(self, handler):
         self.job_done_handlers.append(handler)

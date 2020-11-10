@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
                 self.autoqr.done_count, self.autoqr.rate))
             if self.autoqr.done_count == len(self.df):
                 logger.info('all jobs are finished')
+                self.autoqr.finalize()
                 self.statusBar().showMessage('全例終了')
                 self.start_button.setEnabled(False)
                 self.stop_button.setEnabled(False)
