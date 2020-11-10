@@ -1,7 +1,6 @@
 import sys
 import platform
 import datetime
-import time
 import subprocess
 import argparse
 import logging
@@ -14,8 +13,9 @@ import logzero
 from logzero import logger
 import pandas as pd
 
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QGridLayout
-from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QCheckBox, QErrorMessage
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout
+from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QErrorMessage
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 

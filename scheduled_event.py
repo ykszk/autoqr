@@ -2,11 +2,9 @@ from threading import Event, Thread
 from typing import List, Tuple
 from collections import namedtuple
 import time
-import datetime
 
 from logzero import logger as default_logger
 
-from utils import log_call
 from hm_clock import HMClock
 
 Period = namedtuple('Period', ['start', 'end'])
