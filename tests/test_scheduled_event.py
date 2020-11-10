@@ -73,3 +73,16 @@ class TestScheduledEvent(unittest.TestCase):
             self.assertTrue(se.event.is_set())
             time.sleep(2)
             self.assertFalse(se.event.is_set())
+
+    def test_start_stop(self):
+        se = ScheduledEvent([('0600', '0800')])
+        with freezegun.freeze_time('2020-1-1 7:00:00', tick=True):
+            self.assertFalse(se.event.is_set())
+            se.start()
+            self.assertTrue(se.event.is_set())
+            se.stop()
+            self.assertFalse(se.event.is_set())
+            se.start()
+            self.assertTrue(se.event.is_set())
+            se.stop()
+            self.assertFalse(se.event.is_set())
