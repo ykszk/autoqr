@@ -9,7 +9,7 @@
 
 ## Run
 ```sh
-python autoqr.py
+python gui.py
 ```
 
 ## Scripts
