@@ -128,10 +128,10 @@ class MainWindow(QMainWindow):
             str(Path.home() / 'Desktop' /
                 datetime.date.today().strftime('%m%d')))
         output_group.layout().addWidget(self.output_edit)
-        output_button = QPushButton('選択...')
-        output_button.clicked.connect(on_browse_button_clicked)
-        self.config_widgets.append(output_button)
-        output_group.layout().addWidget(output_button)
+        self.output_button = QPushButton('選択...')
+        self.output_button.clicked.connect(on_browse_button_clicked)
+        # self.config_widgets.append(self.output_button)
+        output_group.layout().addWidget(self.output_button)
 
         self.layout.addWidget(output_group)
 
@@ -226,6 +226,7 @@ class MainWindow(QMainWindow):
                 self.task_queue.put([(pid, oid, suid, self.output_edit.text()),
                                      self.tid2aet, self.tid2port,
                                      self._handle_result, self._handle_error])
+            self.output_button.setEnabled(False)
             self.update_button_state()
 
         input_group = QGroupBox('患者リスト')
