@@ -7,28 +7,12 @@ from pydicom.dataset import Dataset
 from logzero import logger
 
 import qr
+from utils import swallow_exceptions
 
 EXT_TABLE = {
     '.csv': 'to_csv',
     '.xlsx': 'to_excel',
 }
-
-
-def swallow_exceptions(exception_logger=None):
-    '''
-    Decorator
-    '''
-    def decorator(f):
-        def wrapper(*args, **kwargs):
-            try:
-                return f(*args, **kwargs)
-            except Exception as e:
-                if exception_logger is not None:
-                    exception_logger.error(e)
-
-        return wrapper
-
-    return decorator
 
 
 def main():

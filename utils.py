@@ -2,7 +2,27 @@ from threading import Lock
 from contextlib import contextmanager
 
 
+def swallow_exceptions(exception_logger=None):
+    '''
+    Decorator
+    '''
+    def decorator(f):
+        def wrapper(*args, **kwargs):
+            try:
+                return f(*args, **kwargs)
+            except Exception as e:
+                if exception_logger is not None:
+                    exception_logger.error(e)
+
+        return wrapper
+
+    return decorator
+
+
 def log_call(logger, msg: str):
+    '''
+    Decorator that logs each function call
+    '''
     def deco(f):
         def wrapper(*args, **kwargs):
             logger.info(msg)
