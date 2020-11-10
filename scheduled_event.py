@@ -48,6 +48,9 @@ class Periods():
         deltas.sort(key=lambda d: d[1])
         return deltas[0][0]
 
+    def __str__(self):
+        return 'Periods({})'.format(self.periods)
+
     def __eq__(self, other: 'Periods'):
         return self.periods == other.periods
 

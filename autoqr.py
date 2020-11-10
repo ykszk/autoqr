@@ -14,13 +14,14 @@ import logzero
 from logzero import logger
 import pandas as pd
 
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QGridLayout
 from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QCheckBox, QErrorMessage
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 
 from widgets import VLine, ClockLabel, TimeEdit
 from hm_clock import HMClock
+from scheduled_event import ScheduledEvent
 import qr
 import utils
 from config import settings
@@ -65,12 +66,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.df = pd.DataFrame()
-        self.start_timer = QTimer(self)
-        self.start_timer.setSingleShot(True)
-        self.start_timer.timeout.connect(self.start_workers)
-        self.stop_timer = QTimer(self)
-        self.stop_timer.setSingleShot(True)
-        self.stop_timer.timeout.connect(self.stop_workers_w_start_timer)
         self.task_queue = Queue()
         self.error_filename = 'errors.txt'
         self.done_count = 0
@@ -79,13 +74,13 @@ class MainWindow(QMainWindow):
         ]  # widgets used for configuration. disabled during the execution
         self._init_widgets()
 
-        self.event = Event()
-        self.event.clear()
+        self.sched_event = ScheduledEvent(settings.PERIODS, logger=logger)
         self.threads = []
         self.tid2aet = {}
         self.tid2port = {}
         for i in range(settings.N_THREADS):
-            t = Thread(target=worker, args=(job, self.task_queue, self.event))
+            t = Thread(target=worker,
+                       args=(job, self.task_queue, self.sched_event.event))
             t.setDaemon(True)
             self.threads.append(t)
             t.start()
@@ -102,27 +97,19 @@ class MainWindow(QMainWindow):
     def _init_periods(self):
         period_group = QGroupBox('開始・終了時間')
         period_group.setLayout(QVBoxLayout())
-        top_layout = QHBoxLayout()
-        top_layout.addWidget(QLabel('開始', self))
-        self.start_time = TimeEdit()
-        self.start_time.setText(settings.PERIODS[0][0])
-        self.start_time.setEnabled(False)
-        # self.config_widgets.append(self.start_time)
-        top_layout.addWidget(self.start_time)
-        top_layout.addWidget(QLabel('終了', self))
-        self.stop_time = TimeEdit()
-        self.stop_time.setText(settings.PERIODS[0][1])
-        self.stop_time.setEnabled(False)
-        # self.config_widgets.append(self.stop_time)
-        top_layout.addWidget(self.stop_time)
-        period_group.layout().addLayout(top_layout)
-
-        self.ignore_weekend = QCheckBox('土日は止めない')
-        self.ignore_weekend.setChecked(False)
-        self.ignore_weekend.setEnabled(False)
-        # self.config_widgets.append(self.ignore_weekend)
-        period_group.layout().addWidget(self.ignore_weekend)
-
+        grid = QGridLayout()
+        grid.addWidget(QLabel('開始', self), 0, 0, Qt.AlignCenter)
+        grid.addWidget(QLabel('終了', self), 0, 1, Qt.AlignCenter)
+        for i, period in enumerate(settings.PERIODS, start=1):
+            start_time = TimeEdit()
+            start_time.setText(period[0])
+            start_time.setEnabled(False)
+            grid.addWidget(start_time, i, 0, Qt.AlignCenter)
+            stop_time = TimeEdit()
+            stop_time.setText(period[1])
+            stop_time.setEnabled(False)
+            grid.addWidget(stop_time, i, 1, Qt.AlignCenter)
+        period_group.layout().addLayout(grid)
         self.layout.addWidget(period_group)
 
     def _init_output(self):
@@ -262,44 +249,6 @@ class MainWindow(QMainWindow):
         group.layout().addWidget(self.log_label)
         self.layout.addWidget(group)
 
-    def start_workers(self):
-        logger.debug('start_workers')
-        self.statusBar().showMessage('Starting workers', MSG_DURATION)
-        stop = HMClock.from_str(self.stop_time.text())
-        clock_delta = stop - HMClock.now()
-        stop_time = datetime.datetime.now() + datetime.timedelta(
-            minutes=clock_delta.to_minute())
-        if self.ignore_weekend.isChecked():
-            while stop_time.weekday() in [5, 6]:
-                logger.info('Skip weekend %s', stop_time)
-                stop_time = stop_time + datetime.timedelta(days=1)
-
-        wait = stop_time - datetime.datetime.now()
-        self.stop_timer.start(wait.total_seconds() * 1000)
-        logger.info('Scheduling stop in %dh %dm at %s',
-                    wait.days * 24 + (wait.seconds // 3600),
-                    (wait.seconds % 3600) // 60, stop_time)
-        self.event.set()
-
-    def set_start_timer(self):
-        start = HMClock.from_str(self.start_time.text())
-        wait = start - HMClock.now()
-        self.start_timer.start(wait.to_msec() -
-                               datetime.datetime.now().second * 1000)
-        logger.info('Scheduling start in %dh %dm at %s', wait.hour,
-                    wait.minute, start)
-        self.statusBar().showMessage('Scheduled to start at {}'.format(
-            HMClock.from_str(self.start_time.text())))
-
-    def stop_workers(self):
-        logger.info('stop_workers')
-        self.event.clear()
-
-    def stop_workers_w_start_timer(self):
-        logger.info('stop_workers_w_start_timer')
-        self.set_start_timer()
-        self.event.clear()
-
     def _init_buttons(self):
         self.stop_button = QPushButton('Pause')
         self.stop_button.setEnabled(False)
@@ -328,10 +277,7 @@ class MainWindow(QMainWindow):
                 datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
                 '_errors.txt')
 
-            if self.is_in_time():
-                self.start_workers()
-            else:
-                self.set_start_timer()
+            self.sched_event.start()
 
         def on_stop_button_clicked():
             logger.debug('stop button clicked')
@@ -339,9 +285,7 @@ class MainWindow(QMainWindow):
             self.stop_button.setEnabled(False)
 
             self.statusBar().showMessage('Pausing workers', MSG_DURATION)
-            self.start_timer.stop()
-            self.stop_timer.stop()
-            self.stop_workers()
+            self.sched_event.stop()
 
         self.stop_button.clicked.connect(on_stop_button_clicked)
         self.start_button.clicked.connect(on_start_button_clicked)

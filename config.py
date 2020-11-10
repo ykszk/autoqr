@@ -10,7 +10,7 @@ class Defaults():
         self.__PORT = 4242  # DICOM server's port
         self.AEC = 'ANY-SCP'  # DICOM server's AET
         self.AETS = ['AUTOQR']  # Client's application Entity Title
-        self.__PERIODS = [['1800', '0700']]
+        self.__PERIODS = [('1800', '0700')]
         self.DCMTK_BINDIR = ''
         self.__N_THREADS = 1
         self.__RECEIVE_PORTS = [104]
