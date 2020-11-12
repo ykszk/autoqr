@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import logzero
 from logzero import logger
+import pandas as pd
 
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
         self.config_widgets = [
         ]  # widgets used for configuration. disabled during the execution
         self._init_widgets()
+        self.df = pd.DataFrame()
 
     def _init_periods(self):
         period_group = QGroupBox('開始・終了時間')
@@ -202,7 +204,7 @@ class MainWindow(QMainWindow):
             if self.output_edit.text() == '':
                 return False
 
-            if self.df is None:
+            if len(self.df) == 0:
                 return False
 
             return True
