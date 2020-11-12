@@ -5,7 +5,7 @@ import threading
 from threading import Thread, Event
 from pathlib import Path
 from typing import Tuple
-from logzero import logger
+from logzero import logger as default_logger
 import pandas as pd
 
 from scheduled_event import ScheduledEvent
@@ -14,12 +14,13 @@ import utils
 from config import settings
 
 MSG_DURATION = 2000
-logger.setLevel(logging.DEBUG)
+default_logger.setLevel(logging.DEBUG)
 
 
 class AutoQR():
-    def __init__(self, outdir):
-        self.sched_event = ScheduledEvent(settings.PERIODS, logger=logger)
+    def __init__(self, outdir, logger):
+        self.logger = logger
+        self.sched_event = ScheduledEvent(settings.PERIODS, logger=self.logger)
         self.done_count = 0
         self.rate = 0
         self.locker = utils.Locker()
@@ -38,6 +39,9 @@ class AutoQR():
         self.error_filename = self.outdir / (
             datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
             '_errors.txt')
+
+        self.logger.info('Anon table filename:%s', str(self.anon_table))
+        self.logger.info('Error log filename:%s', str(self.error_filename))
         self.threads = []
         self.tid2aet = {}
         self.tid2port = {}
@@ -62,8 +66,8 @@ class AutoQR():
     def _job(self, args: Tuple[str, str, str], tid2aet, tid2port):
         start = datetime.datetime.now()
         PatientID, AccessionNumber, StudyInstanceUID = args
-        logger.info('start retrieve and anonymize %s %s', PatientID,
-                    StudyInstanceUID)
+        self.logger.info('start retrieve and anonymize %s %s', PatientID,
+                         StudyInstanceUID)
         try:
             ret = qr.qr_anonymize_save(PatientID,
                                        AccessionNumber,
@@ -72,15 +76,15 @@ class AutoQR():
                                        tid2aet[threading.get_ident()],
                                        tid2port[threading.get_ident()],
                                        predicate=qr.is_original_image,
-                                       logger=logger)
+                                       logger=self.logger)
         except Exception as e:
-            logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
+            self.logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
             self._handle_error(args, e)
             for handler in self.job_done_handlers:
                 handler()
             return
         self._handle_result(args, ret, datetime.datetime.now() - start)
-        logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
+        self.logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
         for handler in self.job_done_handlers:
             handler()
 
@@ -127,7 +131,7 @@ class AutoQR():
 
     def set_df(self, df):
         self.df = df
-        logger.info('Initialize task queue. (%d)', len(df))
+        self.logger.info('Initialize task queue. (%d)', len(df))
         self.done_count = 0
         self.t_deltas = []
         self.task_queue.queue.clear()

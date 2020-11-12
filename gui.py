@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
             if self.autoqr.done_count == len(self.df):
                 logger.info('all jobs are finished')
                 self.autoqr.finalize()
+                logger.info('Finalization is over')
                 self.statusBar().showMessage('全例終了')
                 self.start_button.setEnabled(False)
                 self.stop_button.setEnabled(False)
@@ -114,7 +115,7 @@ class MainWindow(QMainWindow):
                 min_date.date().strftime('%Y/%m/%d'),
                 max_date.date().strftime('%Y/%m/%d')))
 
-            self.autoqr = AutoQR(self.output_edit.text())
+            self.autoqr = AutoQR(self.output_edit.text(), logger)
             self.autoqr.add_job_done_handler(self._on_job_done)
             self.autoqr.set_df(self.df)
             self.output_button.setEnabled(False)
@@ -262,6 +263,7 @@ def main():
             datetime.datetime.today().strftime("%y%m%d_%H%M%S"))
         logfile.parent.mkdir(parents=True, exist_ok=True)
         logzero.logfile(logfile, maxBytes=1e7, backupCount=256)
+        logger.info('Log filename:%s', str(logfile))
     logger.setLevel(args.loglevel)
 
     if len(settings.RECEIVE_PORTS) < settings.N_THREADS:

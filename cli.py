@@ -70,7 +70,7 @@ def main():
         logger.warning('N_THREADS < available ports (%s and %s)',
                        len(settings.RECEIVE_PORTS), settings.N_THREADS)
 
-    autoqr = AutoQR(args.outdir)
+    autoqr = AutoQR(args.outdir, logger)
     df = open_csv(args.csv_filename)
     autoqr.set_df(df)
     lock = Lock()
