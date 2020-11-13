@@ -40,7 +40,8 @@ class AutoQR():
             datetime.datetime.today().strftime("%y%m%d_%H%M%S") +
             '_errors.txt')
 
-        self.logger.info('Anon table filename:%s', str(self.anon_table))
+        self.logger.info('Anon table filename:%s',
+                         str(self.anon_table.filename))
         self.logger.info('Error log filename:%s', str(self.error_filename))
         self.threads = []
         self.tid2aet = {}

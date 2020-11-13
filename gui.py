@@ -1,3 +1,4 @@
+from hm_clock import HMClock
 import sys
 import platform
 import datetime
@@ -13,10 +14,11 @@ from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout
 from PyQt5.QtWidgets import QLabel, QPushButton, QGroupBox, QFileDialog, QLineEdit, QErrorMessage
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 
 from widgets import VLine, ClockLabel, TimeEdit
 from autoqr import AutoQR, open_csv
+from scheduled_event import Periods
 import utils
 from config import settings
 
@@ -104,7 +106,7 @@ class MainWindow(QMainWindow):
                 dialog.showMessage('無効なファイルです。{}'.format(str(e)))
                 return
             logger.info('Done opening input:%s', fileName)
-            self.statusBar().showMessage('リストの読み込み完了')
+            self.statusBar().showMessage('リストの読み込み完了', MSG_DURATION)
             self.df['datetime'] = self.df[settings.COL_STUDY_DATE].map(
                 lambda d: datetime.datetime.strptime(d, settings.
                                                      DATETIME_FORMAT))
@@ -191,6 +193,22 @@ class MainWindow(QMainWindow):
         self.statusBar().setStyleSheet(
             'color: black;background-color: #FFF8DC;')
         self.statusBar().showMessage('App started.', MSG_DURATION)
+        self.statusBar().addPermanentWidget(VLine())
+        self.periodLabel = QLabel()
+        self.statusBar().addPermanentWidget(self.periodLabel)
+        self.periods = Periods(settings.PERIODS)
+        self.periodLabelTimer = QTimer(self)
+
+        def update_period_label():
+            in_time = self.periods.is_in(HMClock.now())
+            if in_time:
+                self.periodLabel.setText('実行時間内')
+            else:
+                self.periodLabel.setText('実行時間外')
+
+        update_period_label()
+        self.periodLabelTimer.timeout.connect(update_period_label)
+        self.periodLabelTimer.start(1000)
         self.statusBar().addPermanentWidget(VLine())
         self.statusBar().addPermanentWidget(ClockLabel(self))
 

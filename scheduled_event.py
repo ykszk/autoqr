@@ -28,9 +28,15 @@ class Periods():
                 raise RuntimeError('Overlapping periods: {}'.format(
                     self.periods))
 
+    def is_in(self, clock: 'HMClock'):
+        '''
+        Return if the clock is in one of the periods
+        '''
+        return self.between(clock) is not None
+
     def between(self, clock: 'HMClock'):
         '''
-        Return current period
+        Return period where clock is contained if theres any. Otherwise return None.
         '''
         for p in self.periods:
             if clock.is_between(p.start, p.end):
