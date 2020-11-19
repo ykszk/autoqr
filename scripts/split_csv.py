@@ -30,7 +30,7 @@ def main():
 
     dfs = []
     for input_filename in args.input:
-        dfs.append(pd.read_csv(input_filename))
+        dfs.append(pd.read_csv(input_filename, dtype=str))
 
     df = pd.concat(dfs)
     outdir = Path(args.output)

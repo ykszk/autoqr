@@ -27,7 +27,7 @@ def main():
 
     dfs = []
     for input_filename in args.input:
-        df = pd.read_csv(input_filename)
+        df = pd.read_csv(input_filename, dtype=str)
         dfs.append(df)
         logger.info('%s : %d', input_filename, len(df))
 
