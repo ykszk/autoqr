@@ -8,7 +8,7 @@ from threading import Lock
 import logzero
 from logzero import logger
 
-from autoqr import AutoQR, open_csv
+from autoqr import AutoQR, open_csv, remove_existing, add_datetime
 
 from config import settings
 
@@ -70,8 +70,18 @@ def main():
         logger.warning('N_THREADS < available ports (%s and %s)',
                        len(settings.RECEIVE_PORTS), settings.N_THREADS)
 
+    outdir = Path(args.outdir)
     autoqr = AutoQR(args.outdir, logger)
     df = open_csv(args.csv_filename)
+    add_datetime(df)
+    if settings.SKIP_EXISTING_STUDY:
+        logger.info('Skip existing')
+        original_count = len(df)
+        df = remove_existing(df, outdir)
+        logger.info('Skipping result:%d -> %d', original_count, len(df))
+    if len(df) == 0:
+        print('No studies for Q/R')
+        return 0
     autoqr.set_df(df)
     lock = Lock()
     lock.acquire()
@@ -81,7 +91,7 @@ def main():
         if autoqr.done_count >= len(df):
             lock.release()
 
-    Path(args.outdir).mkdir(parents=True, exist_ok=True)
+    outdir.mkdir(parents=True, exist_ok=True)
     autoqr.add_job_done_handler(on_job_done)
     autoqr.sched_event.start()
 

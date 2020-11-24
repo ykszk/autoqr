@@ -40,7 +40,15 @@ def gen_sop_uid(dcm, base_uid, sop_prefix):
     return sop_prefix[:(64 - len(suffix) - 1)] + '.' + suffix
 
 
-def anonymize_study_uid(dcm):
+def anonymize_patient_id(dcm: pydicom.Dataset):
+    new_pid = hash_utils.hash_id(dcm.PatientID)
+    return new_pid
+
+
+def anonymize_study_uid(dcm: pydicom.Dataset):
+    '''
+    dcm: Datset with at least PatientID and StudyInstanceUID
+    '''
     new_pid = hash_utils.hash_id(dcm.PatientID)
     new_study_uid = pydicom.uid.generate_uid(
         prefix=pydicom.uid.PYDICOM_ROOT_UID + STUDY_UID_PREFIX,
@@ -49,6 +57,9 @@ def anonymize_study_uid(dcm):
 
 
 def anonymize_series_uid(dcm):
+    '''
+    dcm: Datset with at least PatientID and SeriesInstanceUID
+    '''
     new_pid = hash_utils.hash_id(dcm.PatientID)
     new_series_uid = pydicom.uid.generate_uid(
         prefix=pydicom.uid.PYDICOM_ROOT_UID + SERIES_UID_PREFIX,
@@ -58,7 +69,7 @@ def anonymize_series_uid(dcm):
 
 def anonymize_dcm(dcms, zip_filename):
     dcm = dcms[0]
-    new_pid = hash_utils.hash_id(dcm.PatientID)
+    new_pid = anonymize_patient_id(dcm)
 
     replace_rules = []
 

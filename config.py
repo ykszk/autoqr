@@ -19,6 +19,7 @@ class Defaults():
         self.COL_STUDY_DATE = 'StudyDate'
         self.COL_PATIENT_ID = 'PatientID'
         self.DATETIME_FORMAT = '%Y%m%d'
+        self.SKIP_EXISTING_STUDY = True
 
     @property
     def N_THREADS(self):

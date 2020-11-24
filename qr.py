@@ -184,6 +184,22 @@ def qr_dcmtk(ds: Dataset,
     return found_datasets
 
 
+def get_output_directory(basedir: Path, year: str, date: str, patient_id: str,
+                         study_uid: str):
+    '''
+    Args:
+        patient_id: Original PatientID
+        study_uid: Original StudyInstanceUID
+    '''
+    ds = Dataset()
+    ds.PatientID = patient_id
+    ds.StudyInstanceUID = study_uid
+    new_pid = anonymize.anonymize_patient_id(ds)
+    new_study_uid = anonymize.anonymize_study_uid(ds)
+    zipdir = basedir / year / date / new_pid / new_study_uid
+    return zipdir
+
+
 def qr_anonymize_save(PatientID: str,
                       AccessionNumber: str,
                       StudyInstanceUID: str,
@@ -210,6 +226,8 @@ def qr_anonymize_save(PatientID: str,
     temp = tempfile.mkdtemp()
     tmp_dir = Path(temp)
     all_datasets = query(ds, logger=logger)
+    if len(all_datasets) == 0:
+        raise RuntimeError('No result for query:%{}'.format(ds))
 
     if predicate is not None:
         all_datasets = [ds for ds in all_datasets if predicate(ds)]
@@ -243,10 +261,9 @@ def qr_anonymize_save(PatientID: str,
                         tmp_dir / dcm.SeriesInstanceUID / dcm_fn.name)
         for dcm in all_datasets:
             year, date = dcm.StudyDate[:4], dcm.StudyDate[4:]
-            new_pid = hash_utils.hash_id(dcm.PatientID)
-            new_study_uid = anonymize.anonymize_study_uid(dcm)
             new_series_uid = anonymize.anonymize_series_uid(dcm)
-            zipdir = zip_root / year / date / new_pid / new_study_uid
+            zipdir = get_output_directory(zip_root, year, date, dcm.PatientID,
+                                          dcm.StudyInstanceUID)
             zipdir.mkdir(parents=True, exist_ok=True)
             zip_filename = anonymize.get_available_filename(
                 str(zipdir / new_series_uid), '.zip')

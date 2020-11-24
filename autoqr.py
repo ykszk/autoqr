@@ -153,3 +153,31 @@ def open_csv(filename):
         if c not in df.columns:
             raise Exception('{}がありません。'.format(c))
     return df
+
+
+def study_exists(basedir, year, date, pid, study_uid):
+    outdir = qr.get_output_directory(basedir, year, date, pid, study_uid)
+    files = list(outdir.glob('*.zip'))
+    return len(files) > 0
+
+
+def remove_existing(df: pd.DataFrame, basedir: Path):
+    '''
+    Args:
+        df: Dataframe with "datetime" column.
+    '''
+    exists = df.apply(lambda row: study_exists(
+        basedir, row.datetime.strftime('%Y'), row.datetime.strftime(
+            '%m%d'), row.PatientID, row.StudyInstanceUID),
+                      axis=1,
+                      raw=False)
+    return df[~exists]
+
+
+def add_datetime(df: pd.DataFrame):
+    '''
+    Add datetime column.
+    '''
+    df['datetime'] = df[settings.COL_STUDY_DATE].map(
+        lambda d: datetime.datetime.strptime(d, settings.DATETIME_FORMAT))
+    return df

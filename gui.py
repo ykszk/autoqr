@@ -17,7 +17,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QTimer
 
 from widgets import VLine, ClockLabel, TimeEdit
-from autoqr import AutoQR, open_csv
+from autoqr import AutoQR, open_csv, remove_existing, add_datetime
 from scheduled_event import Periods
 import utils
 from config import settings
@@ -106,17 +106,26 @@ class MainWindow(QMainWindow):
                 dialog.showMessage('無効なファイルです。{}'.format(str(e)))
                 return
             logger.info('Done opening input:%s', fileName)
-            self.statusBar().showMessage('リストの読み込み完了', MSG_DURATION)
-            self.df['datetime'] = self.df[settings.COL_STUDY_DATE].map(
-                lambda d: datetime.datetime.strptime(d, settings.
-                                                     DATETIME_FORMAT))
+            logger.info('Input size:%d', len(self.df))
+            original_count = len(self.df)
+            add_datetime(self.df)
             min_date, max_date = min(self.df['datetime']), max(
                 self.df['datetime'])
-            self.input_label.setText('ファイル名：{}、総数：{}\n期間：{} ~ {}'.format(
-                Path(fileName).name, len(self.df),
-                min_date.date().strftime('%Y/%m/%d'),
-                max_date.date().strftime('%Y/%m/%d')))
-
+            if settings.SKIP_EXISTING_STUDY:
+                self.df = remove_existing(self.df,
+                                          Path(self.output_edit.text()))
+                logger.info('Filtered input size:%s', len(self.df))
+                self.input_label.setText(
+                    'ファイル名：{}\n期間：{} ~ {}\n件数：{}, Skip：{}'.format(
+                        Path(fileName).name,
+                        min_date.date().strftime('%Y/%m/%d'),
+                        max_date.date().strftime('%Y/%m/%d'), len(self.df),
+                        original_count - len(self.df)))
+            else:
+                self.input_label.setText('ファイル名：{}\n期間：{} ~ {}\n件数：{}'.format(
+                    Path(fileName).name,
+                    min_date.date().strftime('%Y/%m/%d'),
+                    max_date.date().strftime('%Y/%m/%d'), len(self.df)))
             self.autoqr = AutoQR(self.output_edit.text(), logger)
             self.autoqr.add_job_done_handler(self._on_job_done)
             self.autoqr.set_df(self.df)
@@ -129,7 +138,7 @@ class MainWindow(QMainWindow):
         input_button.clicked.connect(on_input_button_clicked)
         self.config_widgets.append(input_button)
         input_group.layout().addWidget(input_button)
-        self.input_label = QLabel('リストがありません', self)
+        self.input_label = QLabel('リストがありません\n\n\n', self)
         self.input_label.setAlignment(Qt.AlignCenter)
         input_group.layout().addWidget(self.input_label)
 
