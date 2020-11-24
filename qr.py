@@ -37,6 +37,8 @@ def query(ds: Dataset, logger=None):
     ae = AE(ae_title=settings.AETS[0])
     ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
     ae.associate(settings.DICOM_SERVER, settings.PORT, ae_title=settings.AEC)
+    if len(ae.active_associations) == 0:
+        raise RuntimeError('No association was established')
     assoc = ae.active_associations[0]
     if not assoc.is_established:
         raise RuntimeError('Association rejected, aborted or never connected')

@@ -12,7 +12,6 @@ from autoqr import AutoQR, open_csv, remove_existing, add_datetime
 
 from config import settings
 
-MSG_DURATION = 2000
 logger.setLevel(logging.DEBUG)
 
 
@@ -83,12 +82,12 @@ def main():
         print('No studies for Q/R')
         return 0
     autoqr.set_df(df)
-    lock = Lock()
+    lock = Lock()  # lock to wait for the autoqr to finish
     lock.acquire()
 
     def on_job_done():
         logger.info('QR rate = %g / h', autoqr.rate)
-        if autoqr.done_count >= len(df):
+        if autoqr.done_count + autoqr.error_count >= len(df):
             lock.release()
 
     outdir.mkdir(parents=True, exist_ok=True)

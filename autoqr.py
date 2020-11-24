@@ -21,11 +21,13 @@ class AutoQR():
     def __init__(self, outdir, logger):
         self.logger = logger
         self.sched_event = ScheduledEvent(settings.PERIODS, logger=self.logger)
-        self.done_count = 0
+        self.done_count = 0  # num of successes
+        self.error_count = 0  # num of errors
         self.rate = 0
         self.locker = utils.Locker()
         self.t_deltas = []
         self.job_done_handlers = [self._on_job_done]
+        self.error_handlers = [self._on_error]
         self.outdir = Path(outdir)
         header = [
             'StudyDate', 'OriginalPatientID', 'AnonymizedPatientID',
@@ -81,7 +83,7 @@ class AutoQR():
         except Exception as e:
             self.logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
             self._handle_error(args, e)
-            for handler in self.job_done_handlers:
+            for handler in self.error_handlers:
                 handler()
             return
         self._handle_result(args, ret, datetime.datetime.now() - start)
@@ -116,12 +118,16 @@ class AutoQR():
     def _handle_error(self, args: Tuple[str, str, str], e):
         PatientID, _, StudyInstanceUID = args
         with self.locker.lock():
+            self.error_count += 1
             with open(self.error_filename, 'a') as f:
                 f.write('{},{},{}\n'.format(PatientID, StudyInstanceUID, e))
-            self.done_count += 1
 
     def _on_job_done(self):
-        if self.done_count == len(self.df):
+        if self.done_count + self.error_count == len(self.df):
+            self.sched_event.stop()
+
+    def _on_error(self):
+        if self.done_count + self.error_count == len(self.df):
             self.sched_event.stop()
 
     def finalize(self):
@@ -129,6 +135,9 @@ class AutoQR():
 
     def add_job_done_handler(self, handler):
         self.job_done_handlers.append(handler)
+
+    def add_error_handler(self, handler):
+        self.error_handlers.append(handler)
 
     def set_df(self, df):
         self.df = df

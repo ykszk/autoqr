@@ -77,8 +77,9 @@ class MainWindow(QMainWindow):
 
     def _on_job_done(self):
         with self.locker.lock():
-            self.log_label.setText('{} 完了. {:g} / h'.format(
-                self.autoqr.done_count, self.autoqr.rate))
+            self.log_label.setText('{} 成功.{} 失敗.\n{:g} / h'.format(
+                self.autoqr.done_count, self.autoqr.error_count,
+                self.autoqr.rate))
             if self.autoqr.done_count == len(self.df):
                 logger.info('all jobs are finished')
                 self.autoqr.finalize()
@@ -116,7 +117,7 @@ class MainWindow(QMainWindow):
                                           Path(self.output_edit.text()))
                 logger.info('Filtered input size:%s', len(self.df))
                 self.input_label.setText(
-                    'ファイル名：{}\n期間：{} ~ {}\n件数：{}, Skip：{}'.format(
+                    'ファイル名：{}\n期間：{} ~ {}\n件数：{}, Skipped：{}'.format(
                         Path(fileName).name,
                         min_date.date().strftime('%Y/%m/%d'),
                         max_date.date().strftime('%Y/%m/%d'), len(self.df),
@@ -128,6 +129,7 @@ class MainWindow(QMainWindow):
                     max_date.date().strftime('%Y/%m/%d'), len(self.df)))
             self.autoqr = AutoQR(self.output_edit.text(), logger)
             self.autoqr.add_job_done_handler(self._on_job_done)
+            self.autoqr.add_error_handler(self._on_job_done)
             self.autoqr.set_df(self.df)
             self.output_button.setEnabled(False)
             self.update_button_state()
