@@ -2,18 +2,14 @@ from pathlib import Path
 import subprocess
 import tempfile
 import logging
-import threading
 import shutil
 from collections import namedtuple
 from concurrent.futures.thread import ThreadPoolExecutor
+
 import pydicom
 from pydicom.dataset import Dataset
-from pynetdicom import AE, evt, build_role
+from pynetdicom import AE
 from pynetdicom.sop_class import PatientRootQueryRetrieveInformationModelFind
-from pynetdicom.sop_class import (PatientRootQueryRetrieveInformationModelGet,
-                                  CTImageStorage,
-                                  PositronEmissionTomographyImageStorage)
-
 from logzero import setup_logger
 
 from config import settings
@@ -31,23 +27,23 @@ ConnectionInformation = namedtuple(
     'ConnectionInformation', ['server', 'aec', 'port', 'aet', 'receive_port'])
 
 
-def query(ds: Dataset, server=None, aec=None, port=None, logger=None):
+def query(ds: Dataset, conn_info: ConnectionInformation = None, logger=None):
     '''
     Args:
-        aec (str): Optional. AEC. default is settings.AECS[0]
-        port (int): Optional. Server port. default is settings.PORTS[0]
+        conn_info (ConnectionInformation): Only aec and port are required.
     '''
     logger = logger or default_logger
     logger.debug('start query')
-    if server is None:
-        server = settings.DICOM_SERVERS[0]
-    if aec is None:
-        aec = settings.AECS[0]
-    if port is None:
-        port = settings.PORTS[0]
+    if conn_info is None:
+        conn_info = ConnectionInformation(
+            server=settings.DICOM_SERVERS[0],
+            aec=settings.AECS[0],
+            port=settings.PORTS[0],
+            aet=settings.AETS[0],
+            receive_port=settings.RECEIVE_PORTS[0])
     ae = AE(ae_title=settings.AETS[0])
     ae.add_requested_context(PatientRootQueryRetrieveInformationModelFind)
-    ae.associate(server, port, ae_title=aec)
+    ae.associate(conn_info.server, conn_info.port, ae_title=conn_info.aec)
     if len(ae.active_associations) == 0:
         raise RuntimeError('No association was established')
     assoc = ae.active_associations[0]
@@ -71,14 +67,7 @@ def query(ds: Dataset, server=None, aec=None, port=None, logger=None):
     return datasets
 
 
-def retrieve_dcmtk(ds,
-                   outdir,
-                   aet,
-                   receive_port,
-                   server=None,
-                   aec=None,
-                   port=None,
-                   logger=None):
+def retrieve_dcmtk(ds, outdir, conn_info: ConnectionInformation, logger=None):
     '''
     Retrieve using dcmtk.
     dcmtk is used because retrieving with pynetdicom is slow on a laptop for some reason.
@@ -89,14 +78,9 @@ def retrieve_dcmtk(ds,
         series_uid = '\\'.join(series_uid)
     logger.debug('start retrieve %s', series_uid)
 
-    if server is None:
-        aec = settings.DICOM_SERVERS[0]
-    if aec is None:
-        aec = settings.AECS[0]
-    if port is None:
-        port = settings.PORTS[0]
     base_arg = '{} {} {} -aet {} -aec {}'.format(
-        Path(settings.DCMTK_BINDIR) / 'movescu', server, port, aet, aec)
+        Path(settings.DCMTK_BINDIR) / 'movescu', conn_info.server,
+        conn_info.port, conn_info.aet, conn_info.aec)
     level_arg = '-k 0008,0052=SERIES'
     pid_arg = '-k 0010,0020={}'.format(ds.PatientID)
     study_arg = '-k 0020,000D={}'.format(ds.StudyInstanceUID)
@@ -105,7 +89,7 @@ def retrieve_dcmtk(ds,
 
     args = sum([
         base_arg.split(),
-        '+P {}'.format(receive_port).split(),
+        '+P {}'.format(conn_info.receive_port).split(),
         level_arg.split(),
         pid_arg.split(),
         study_arg.split(),
@@ -117,17 +101,21 @@ def retrieve_dcmtk(ds,
     subprocess.check_call(args)
 
     logger.debug('end retrieve %s', ds.SeriesInstanceUID)
-    return
 
 
 def qr_dcmtk(ds: Dataset,
              outdir,
-             aet,
-             receive_port,
+             conn_info: ConnectionInformation = None,
              predicate=None,
              logger=None):
     logger = logger or default_logger
-    found_datasets = query(ds, logger)
+    if conn_info is None:
+        conn_info = ConnectionInformation(settings.DICOM_SERVERS[0],
+                                          settings.AECS[0], settings.PORTS[0],
+                                          settings.AETS[0],
+                                          settings.RECEIVE_PORTS[0])
+
+    found_datasets = query(ds, conn_info, logger)
     if predicate is not None:
         found_datasets = [ds for ds in found_datasets if predicate(ds)]
 
@@ -140,7 +128,7 @@ def qr_dcmtk(ds: Dataset,
         ds.SeriesInstanceUID = found_ds.SeriesInstanceUID
         series_dir = outdir / found_ds.SeriesInstanceUID
         series_dir.mkdir(parents=True, exist_ok=True)
-        retrieve_dcmtk(ds, series_dir, aet, receive_port, logger=logger)
+        retrieve_dcmtk(ds, series_dir, conn_info, logger=logger)
 
     return found_datasets
 
@@ -165,13 +153,18 @@ def qr_anonymize_save(PatientID: str,
                       AccessionNumber: str,
                       StudyInstanceUID: str,
                       outdir: str,
-                      conn_info: ConnectionInformation,
+                      conn_info: ConnectionInformation = None,
                       predicate=None,
                       logger=None):
     '''
     Q/R and save
     '''
     logger = logger or default_logger
+    if conn_info is None:
+        conn_info = ConnectionInformation(settings.DICOM_SERVERS[0],
+                                          settings.AECS[0], settings.PORTS[0],
+                                          settings.AETS[0],
+                                          settings.RECEIVE_PORTS[0])
     ds = Dataset()
     ds.PatientID = PatientID
     ds.StudyDate = ''
@@ -185,10 +178,7 @@ def qr_anonymize_save(PatientID: str,
 
     temp = tempfile.mkdtemp()
     tmp_dir = Path(temp)
-    all_datasets = query(ds,
-                         aec=conn_info.aec,
-                         port=conn_info.port,
-                         logger=logger)
+    all_datasets = query(ds, conn_info, logger=logger)
     if len(all_datasets) == 0:
         raise RuntimeError('No result for query:%{}'.format(ds))
 
@@ -207,14 +197,7 @@ def qr_anonymize_save(PatientID: str,
     ds.PatientID = dcm.PatientID
     ds.StudyInstanceUID = dcm.StudyInstanceUID
     ds.SeriesInstanceUID = '\\'.join(list_suid)
-    retrieve_dcmtk(ds,
-                   temp,
-                   conn_info.aet,
-                   conn_info.receive_port,
-                   server=conn_info.server,
-                   aec=conn_info.aec,
-                   port=conn_info.port,
-                   logger=logger)
+    retrieve_dcmtk(ds, temp, conn_info, logger=logger)
 
     def target():
         logger.info('Start anonymize %s', StudyInstanceUID)
@@ -250,6 +233,9 @@ def qr_anonymize_save(PatientID: str,
 
 
 def shutdown():
+    '''
+    Call at the very end of the program to join all threads
+    '''
     thread_pool.shutdown()
 
 
@@ -267,8 +253,7 @@ def main():
     ds.AccessionNumber = 'Ci5Lj86Rg4HrLuRLZjnqAA'
     ds.SeriesDescription = ''
 
-    all_datasets = qr_dcmtk(ds, Path('.'), settings.AETS[0],
-                            settings.RECEIVE_PORTS[0])
+    all_datasets = qr_dcmtk(ds, Path('.'))
     print(len(all_datasets))
 
 
