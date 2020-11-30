@@ -6,9 +6,10 @@ from logzero import logger as default_logger
 
 class Defaults():
     def __init__(self):
-        self.DICOM_SERVER = 'localhost'  # DICOM server's IP address or hostname
-        self.__PORT = 4242  # DICOM server's port
-        self.AEC = 'ANY-SCP'  # DICOM server's AET
+        self.DICOM_SERVERS = ['localhost'
+                              ]  # DICOM server's IP address or hostname
+        self.__PORTS = [4242]  # DICOM server's port
+        self.AECS = ['ANY-SCP']  # DICOM server's AET
         self.AETS = ['AUTOQR']  # Client's application Entity Title
         self.__PERIODS = [('1800', '0700')]
         self.DCMTK_BINDIR = ''
@@ -30,12 +31,12 @@ class Defaults():
         self.__N_THREADS = int(n_str)
 
     @property
-    def PORT(self):
-        return self.__PORT
+    def PORTS(self):
+        return self.__PORTS
 
-    @PORT.setter
-    def PORT(self, port_str: str):
-        self.__PORT = int(port_str)
+    @PORTS.setter
+    def PORTS(self, port_str: str):
+        self.__PORTS = [int(e) for e in port_str]
 
     @property
     def PERIODS(self):

@@ -46,9 +46,8 @@ class AutoQR():
                          str(self.anon_table.filename))
         self.logger.info('Error log filename:%s', str(self.error_filename))
         self.threads = []
-        self.tid2aet = {}
-        self.tid2port = {}
         self.task_queue = Queue()
+        self.tid2conn_info = {}
         for i in range(settings.N_THREADS):
             t = Thread(target=self._worker,
                        args=(self._job, self.task_queue,
@@ -56,8 +55,14 @@ class AutoQR():
             t.setDaemon(True)
             self.threads.append(t)
             t.start()
-            self.tid2port[t.ident] = settings.RECEIVE_PORTS[i]
-            self.tid2aet[t.ident] = settings.AETS[i]
+            server = settings.DICOM_SERVERS[i % len(settings.AECS)]
+            receive_port = settings.RECEIVE_PORTS[i]
+            aet = settings.AETS[i]
+            port = settings.PORTS[i % len(settings.PORTS)]
+            aec = settings.AECS[i % len(settings.AECS)]
+            info = qr.ConnectionInformation(server, aec, port, aet,
+                                            receive_port)
+            self.tid2conn_info[t.ident] = info
 
     def _worker(self, f, q: Queue, e: Event):
         while True:
@@ -66,7 +71,7 @@ class AutoQR():
             f(*args)
             q.task_done()
 
-    def _job(self, args: Tuple[str, str, str], tid2aet, tid2port):
+    def _job(self, args: Tuple[str, str, str], tid2conn_info):
         start = datetime.datetime.now()
         PatientID, AccessionNumber, StudyInstanceUID = args
         self.logger.info('start retrieve and anonymize %s %s', PatientID,
@@ -76,8 +81,7 @@ class AutoQR():
                                        AccessionNumber,
                                        StudyInstanceUID,
                                        str(self.outdir),
-                                       tid2aet[threading.get_ident()],
-                                       tid2port[threading.get_ident()],
+                                       tid2conn_info[threading.get_ident()],
                                        predicate=qr.is_original_image,
                                        logger=self.logger)
         except Exception as e:
@@ -148,8 +152,7 @@ class AutoQR():
         for pid, oid, suid in zip(self.df[settings.COL_PATIENT_ID],
                                   self.df[settings.COL_ACCESSION_NUMBER],
                                   self.df[settings.COL_STUDY_INSTANCE_UID]):
-            self.task_queue.put([(pid, oid, suid), self.tid2aet,
-                                 self.tid2port])
+            self.task_queue.put([(pid, oid, suid), self.tid2conn_info])
 
 
 def open_csv(filename):
