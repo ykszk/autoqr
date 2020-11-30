@@ -81,6 +81,30 @@ class Defaults():
             elif logger:
                 logger.warning('%s is invalid config key', key)
 
+    def validate_n_threads(self):
+        if len(self.RECEIVE_PORTS) < self.N_THREADS:
+            default_logger.error(
+                'Invalid config. len(RECEIVE_PORTS) < N_THREADS (%d and %d)',
+                len(self.RECEIVE_PORTS), self.N_THREADS)
+            return False
+
+        if len(self.AETS) < self.N_THREADS:
+            default_logger.error(
+                'Invalid N_THREADS config. len(AETS) < N_THREADS (%d and %d)',
+                len(self.AETS), self.N_THREADS)
+            return False
+
+        return True
+
+    def validate_server_config(self):
+        if len(self.AECS) == len(self.DICOM_SERVERS) == len(self.PORTS):
+            return True
+        else:
+            default_logger.error(
+                'Invalid server config. len(AECS), len(DICOM_SERVERS) and len(PORTS) need to be the same value. (%d, %d and %d)',
+                len(self.AECS), len(self.DICOM_SERVERS), len(self.PORTS))
+            return False
+
 
 settings = Defaults()
 config_filename = Path(__file__).parent / 'config.toml'

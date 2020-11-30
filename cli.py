@@ -53,16 +53,12 @@ def main():
         logzero.logfile(logfile, maxBytes=1e7, backupCount=256)
     logger.setLevel(args.loglevel)
 
-    if len(settings.RECEIVE_PORTS) < settings.N_THREADS:
-        print(settings.RECEIVE_PORTS)
-        print('Invalid config. len(RECEIVE_PORTS) < N_THREADS ({} and {})'.
-              format(len(settings.RECEIVE_PORTS), settings.N_THREADS))
+    if not settings.validate_n_threads():
+        print('Invalid N_THREADS')
         return 1
 
-    if len(settings.AETS) < settings.N_THREADS:
-        print(settings.AETS)
-        print('Invalid config. len(AETS) < N_THREADS ({} and {})'.format(
-            len(settings.AETS), settings.N_THREADS))
+    if not settings.validate_server_config():
+        print('Server config error')
         return 1
 
     if len(settings.RECEIVE_PORTS) > settings.N_THREADS:
