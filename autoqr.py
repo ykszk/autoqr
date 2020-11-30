@@ -71,7 +71,6 @@ class AutoQR():
             args = q.get()
             f(*args)
             q.task_done()
-            time.sleep(settings.INTERVAL)
 
     def _job(self, args: Tuple[str, str, str], tid2conn_info):
         start = datetime.datetime.now()
@@ -91,11 +90,13 @@ class AutoQR():
             self._handle_error(args, e)
             for handler in self.error_handlers:
                 handler()
+            time.sleep(settings.INTERVAL)
             return
         self._handle_result(args, ret, datetime.datetime.now() - start)
         self.logger.info('end retrieve %s %s', PatientID, StudyInstanceUID)
         for handler in self.job_done_handlers:
             handler()
+        time.sleep(settings.INTERVAL)
 
     def _handle_result(self, args: Tuple[str, str, str],
                        ret: Tuple[str, str, str, str], t_delta):
