@@ -80,7 +80,8 @@ class MainWindow(QMainWindow):
             self.log_label.setText('{} 成功.{} 失敗.\n{:g} / h'.format(
                 self.autoqr.done_count, self.autoqr.error_count,
                 self.autoqr.rate))
-            if self.autoqr.done_count == len(self.df):
+            if self.autoqr.done_count + self.autoqr.error_count == len(
+                    self.df):
                 logger.info('all jobs are finished')
                 self.autoqr.finalize()
                 logger.info('Finalization is over')
