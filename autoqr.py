@@ -72,19 +72,20 @@ class AutoQR():
             f(*args)
             q.task_done()
 
-    def _job(self, args: Tuple[str, str, str], tid2conn_info):
+    def _job(self, args: Tuple[str, str, str]):
         start = datetime.datetime.now()
         PatientID, AccessionNumber, StudyInstanceUID = args
         self.logger.info('start retrieve and anonymize %s %s', PatientID,
                          StudyInstanceUID)
         try:
-            ret = qr.qr_anonymize_save(PatientID,
-                                       AccessionNumber,
-                                       StudyInstanceUID,
-                                       str(self.outdir),
-                                       tid2conn_info[threading.get_ident()],
-                                       predicate=qr.is_original_image,
-                                       logger=self.logger)
+            ret = qr.qr_anonymize_save(
+                PatientID,
+                AccessionNumber,
+                StudyInstanceUID,
+                str(self.outdir),
+                self.tid2conn_info[threading.get_ident()],
+                predicate=qr.is_original_image,
+                logger=self.logger)
         except Exception as e:
             self.logger.error('(%s,%s):%s', PatientID, StudyInstanceUID, e)
             self._handle_error(args, e)
@@ -155,7 +156,7 @@ class AutoQR():
         for pid, oid, suid in zip(self.df[settings.COL_PATIENT_ID],
                                   self.df[settings.COL_ACCESSION_NUMBER],
                                   self.df[settings.COL_STUDY_INSTANCE_UID]):
-            self.task_queue.put([(pid, oid, suid), self.tid2conn_info])
+            self.task_queue.put([(pid, oid, suid)])
 
 
 def open_csv(filename):
