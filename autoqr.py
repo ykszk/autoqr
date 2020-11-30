@@ -1,6 +1,7 @@
 import datetime
 import logging
 from queue import Queue
+import time
 import threading
 from threading import Thread, Event
 from pathlib import Path
@@ -70,6 +71,7 @@ class AutoQR():
             args = q.get()
             f(*args)
             q.task_done()
+            time.sleep(settings.INTERVAL)
 
     def _job(self, args: Tuple[str, str, str], tid2conn_info):
         start = datetime.datetime.now()

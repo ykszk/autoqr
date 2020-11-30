@@ -21,6 +21,7 @@ class Defaults():
         self.COL_PATIENT_ID = 'PatientID'
         self.DATETIME_FORMAT = '%Y%m%d'
         self.SKIP_EXISTING_STUDY = True
+        self.__INTERVAL = 5
 
     @property
     def N_THREADS(self):
@@ -29,6 +30,14 @@ class Defaults():
     @N_THREADS.setter
     def N_THREADS(self, n_str: str):
         self.__N_THREADS = int(n_str)
+
+    @property
+    def INTERVAL(self):
+        return self.__INTERVAL
+
+    @INTERVAL.setter
+    def INTERVAL(self, int_str: str):
+        self.__INTERVAL = int(int_str)
 
     @property
     def PORTS(self):
